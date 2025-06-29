@@ -28,11 +28,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
   const pathname = usePathname()
-  const supabase = createClient()
 
   useEffect(() => {
     const setupAuth = async () => {
       try {
+        // Create client only when component is mounted (client-side)
+        const supabase = createClient()
+        
         // Get initial session
         const { data: { session: initialSession } } = await supabase.auth.getSession()
         
@@ -70,9 +72,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     }
     
     setupAuth()
-  }, [supabase, router, pathname])
+  }, [router, pathname])
   
   const signOut = async () => {
+    const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/')
   }
