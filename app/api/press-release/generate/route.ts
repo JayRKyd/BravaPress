@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 export interface PressReleaseGenerationParams {
   companyName: string;
   companyDescription: string;
@@ -38,6 +34,11 @@ export async function POST(request: NextRequest) {
     }
     
     console.log('✅ OpenAI API key found');
+    
+    // Initialize OpenAI client (only when API is called, not during build)
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
     
     const params: PressReleaseGenerationParams = await request.json();
     console.log('📝 Received params:', params);

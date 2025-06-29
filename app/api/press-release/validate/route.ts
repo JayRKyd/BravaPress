@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 export interface PressReleaseContent {
   title: string;
   twitterTitle: string;
@@ -29,6 +25,11 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+    
+    // Initialize OpenAI client (only when API is called, not during build)
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
     
     const content: PressReleaseContent = await request.json();
     console.log('📝 Received content for validation:', content);
