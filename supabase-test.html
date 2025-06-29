@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Supabase Connection Test</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+    .success { color: green; }
+    .error { color: red; }
+    pre { background: #f5f5f5; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    .test { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>Supabase Connection Test</h1>
+  
+  <div class="test">
+    <h2>1. Enter your Supabase details</h2>
+    <div>
+      <label>Supabase URL: <input type="text" id="supabaseUrl" style="width: 400px" value="http://135.148.41.27:8000"></label>
+    </div>
+    <div>
+      <label>Anon Key: <input type="text" id="anonKey" style="width: 400px"></label>
+    </div>
+    <div>
+      <label>Service Role Key: <input type="password" id="serviceKey" style="width: 400px"></label>
+    </div>
+    <button onclick="runTests()">Run Tests</button>
+  </div>
+
+  <div id="results"></div>
+
+  <script>
+    function log(message, isError = false) {
+      const results = document.getElementById('results');
+      const div = document.createElement('div');
+      div.className = isError ? 'error' : '';
+      div.textContent = message;
+      results.appendChild(div);
+      console.log(message);
+      return div;
+    }
+
+    function clearLogs() {
+      document.getElementById('results').innerHTML = '';
+    }
+
+    async function testREST(url, key) {
+      const testDiv = document.createElement('div');
+      testDiv.className = 'test';
+      testDiv.innerHTML = '<h3>Testing REST API</h3><div class="status">Testing...</div>';
+      document.getElementById('results').appendChild(testDiv);
+
+      try {
+        const response = await fetch(`${url}/rest/v1/`, {
+          headers: {
+            'apikey': key,
+            'Authorization': `Bearer ${key}`,
+          },
+        });
+
+        const status = response.status;
+        const statusText = response.statusText;
+        let result = `Status: ${status} ${statusText}\n`;
+        
+        if (status === 200) {
+          const data = await response.json();
+          result += `Success!`;
+          testDiv.querySelector('.status').innerHTML = `<span class="success">✓ Connected to REST API</span>`;
+          testDiv.innerHTML += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+        } else {
+          const error = await response.text();
+          result += `Error: ${error}`;
+          testDiv.querySelector('.status').innerHTML = `<span class="error">✗ Failed to connect to REST API: ${status} ${statusText}</span>`;
+          testDiv.innerHTML += `<pre>${error}</pre>`;
+        }
+        
+        return { success: status === 200, message: result };
+      } catch (error) {
+        const errorMessage = `REST API Error: ${error.message || error}`;
+        testDiv.querySelector('.status').innerHTML = `<span class="error">✗ ${errorMessage}</span>`;
+        console.error('REST API Error:', error);
+        return { success: false, message: errorMessage };
+      }
+    }
+
+    async function testRPC(url, key) {
+      const testDiv = document.createElement('div');
+      testDiv.className = 'test';
+      testDiv.innerHTML = '<h3>Testing RPC</h3><div class="status">Testing...</div>';
+      document.getElementById('results').appendChild(testDiv);
+
+      try {
+        const supabase = window.supabase.createClient(url, key);
+        const { data, error } = await supabase.rpc('now');
+        
+        if (error) {
+          const errorMessage = `RPC Error: ${error.message}`;
+          testDiv.querySelector('.status').innerHTML = `<span class="error">✗ ${errorMessage}</span>`;
+          testDiv.innerHTML += `<pre>${JSON.stringify(error, null, 2)}</pre>`;
+          return { success: false, message: errorMessage };
+        } else {
+          testDiv.querySelector('.status').innerHTML = '<span class="success">✓ RPC call successful</span>';
+          testDiv.innerHTML += `<pre>Server time: ${data}</pre>`;
+          return { success: true, message: 'RPC call successful', data };
+        }
+      } catch (error) {
+        const errorMessage = `RPC Exception: ${error.message || error}`;
+        testDiv.querySelector('.status').innerHTML = `<span class="error">✗ ${errorMessage}</span>`;
+        console.error('RPC Exception:', error);
+        return { success: false, message: errorMessage };
+      }
+    }
+
+    async function runTests() {
+      clearLogs();
+      
+      const supabaseUrl = document.getElementById('supabaseUrl').value.trim();
+      const anonKey = document.getElementById('anonKey').value.trim();
+      const serviceKey = document.getElementById('serviceKey').value.trim();
+
+      if (!supabaseUrl || !anonKey || !serviceKey) {
+        alert('Please fill in all fields');
+        return;
+      }
+
+      log(`Testing connection to: ${supabaseUrl}`);
+      
+      // Test REST API with anon key
+      await testREST(supabaseUrl, anonKey);
+      
+      // Test RPC with service key
+      await testRPC(supabaseUrl, serviceKey);
+    }
+  </script>
+</body>
+</html>
