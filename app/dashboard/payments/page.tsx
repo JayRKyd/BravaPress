@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Download, Receipt, Loader2 } from "lucide-react"
+import { ArrowLeft, Download, Receipt, Loader2, AlertCircle, WifiOff } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import Link from "next/link"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useToast } from "@/components/ui/use-toast"
@@ -16,57 +17,131 @@ interface Transaction {
   description: string;
   press_release_id: string;
   submission_status: string;
+  stripe_hosted_invoice_url?: string;
 }
 
 export default function PaymentsPage() {
   const { toast } = useToast();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ type: 'network' | 'auth' | 'unknown'; message: string } | null>(null);
 
   // Fetch transaction history from API
-  useEffect(() => {
-    async function fetchTransactions() {
-      try {
-        setLoading(true);
-        const response = await fetch('/api/payments/history');
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch transaction history');
-        }
-        
-        const data = await response.json();
-        setTransactions(data.transactions || []);
-      } catch (err) {
-        console.error('Error fetching transactions:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load transactions');
-        toast({
-          title: "Error",
-          description: "Failed to load payment history. Please try again.",
-          variant: "destructive"
-        });
-      } finally {
-        setLoading(false);
+  const fetchTransactions = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch('/api/payments/history');
+      
+      if (response.status === 401) {
+        setError({ type: 'auth', message: 'Please log in to view your payment history.' });
+        return;
       }
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch transaction history');
+      }
+      
+      const data = await response.json();
+      setTransactions(data.transactions || []);
+    } catch (err) {
+      console.error('Error fetching transactions:', err);
+      setError(
+        !window.navigator.onLine 
+          ? { type: 'network', message: 'Please check your internet connection and try again.' }
+          : { type: 'unknown', message: 'Unable to load payment history. Please try again later.' }
+      );
+      toast({
+        title: "Error Loading Payments",
+        description: "We couldn't load your payment history. Please try again later.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
+  };
 
+  useEffect(() => {
     fetchTransactions();
-  }, [toast]);
+  }, []);
+
+  const ErrorDisplay = () => {
+    switch (error?.type) {
+      case 'network':
+        return (
+          <Alert variant="destructive">
+            <WifiOff className="h-4 w-4" />
+            <AlertTitle>Connection Error</AlertTitle>
+            <AlertDescription>
+              {error.message}
+              <Button 
+                variant="outline" 
+                className="mt-4 w-full"
+                onClick={fetchTransactions}
+              >
+                Try Again
+              </Button>
+            </AlertDescription>
+          </Alert>
+        );
+      case 'auth':
+        return (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Authentication Required</AlertTitle>
+            <AlertDescription>
+              {error.message}
+              <Link href="/auth/login">
+                <Button className="mt-4 w-full">
+                  Log In
+                </Button>
+              </Link>
+            </AlertDescription>
+          </Alert>
+        );
+      default:
+        return (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>
+              {error?.message}
+              <Button 
+                variant="outline" 
+                className="mt-4 w-full"
+                onClick={fetchTransactions}
+              >
+                Try Again
+              </Button>
+            </AlertDescription>
+          </Alert>
+        );
+    }
+  };
+
+  const PageHeader = () => (
+    <div className="flex items-center gap-2">
+      <Link href="/dashboard">
+        <Button variant="ghost" size="icon">
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+      </Link>
+      <h1 className="text-3xl font-bold tracking-tight">Payment History</h1>
+    </div>
+  );
 
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center gap-2">
-          <Link href="/dashboard">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <h1 className="text-3xl font-bold tracking-tight">Payment History</h1>
-        </div>
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin" />
-        </div>
+        <PageHeader />
+        <Card>
+          <CardContent className="min-h-[400px] flex items-center justify-center">
+            <div className="text-center">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+              <p className="text-sm text-muted-foreground">Loading payment history...</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -74,26 +149,10 @@ export default function PaymentsPage() {
   if (error) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center gap-2">
-          <Link href="/dashboard">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <h1 className="text-3xl font-bold tracking-tight">Payment History</h1>
-        </div>
+        <PageHeader />
         <Card>
-          <CardContent className="py-12">
-            <div className="text-center">
-              <p className="text-muted-foreground">Failed to load payment history</p>
-              <Button 
-                variant="outline" 
-                className="mt-4"
-                onClick={() => window.location.reload()}
-              >
-                Try Again
-              </Button>
-            </div>
+          <CardContent className="py-6">
+            <ErrorDisplay />
           </CardContent>
         </Card>
       </div>
@@ -102,14 +161,7 @@ export default function PaymentsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <Link href="/dashboard">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <h1 className="text-3xl font-bold tracking-tight">Payment History</h1>
-      </div>
+      <PageHeader />
 
       <Card>
         <CardHeader>
@@ -122,7 +174,7 @@ export default function PaymentsPage() {
             <div>
               <p className="font-medium">Secure Payments via Stripe</p>
               <p className="text-sm text-muted-foreground">
-                All payments are processed securely through Stripe. We do not store your credit card information.
+                All payments are processed securely through Stripe. Download your receipts anytime for your records.
               </p>
             </div>
           </div>
@@ -130,24 +182,25 @@ export default function PaymentsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Receipt</TableHead>
                 <TableHead>Date</TableHead>
+                <TableHead>Description</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="text-right">Receipt</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {transactions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12">
+                  <TableCell colSpan={5} className="text-center py-12">
                     <div className="text-muted-foreground">
                       <Receipt className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p className="text-lg font-medium mb-2">No transactions yet</p>
-                      <p className="text-sm">Your payment history will appear here after you create your first press release.</p>
+                      <p className="text-lg font-medium mb-2">No Payments Yet</p>
+                      <p className="text-sm max-w-[400px] mx-auto mb-4">
+                        Once you create and submit your first press release, your payment history will appear here.
+                      </p>
                       <Link href="/dashboard/new-release">
-                        <Button className="mt-4">
+                        <Button>
                           Create Press Release
                         </Button>
                       </Link>
@@ -157,9 +210,11 @@ export default function PaymentsPage() {
               ) : (
                 transactions.map((transaction) => (
                   <TableRow key={transaction.id}>
-                    <TableCell className="font-medium">{transaction.id}</TableCell>
                     <TableCell>{transaction.date}</TableCell>
-                    <TableCell>{transaction.amount}</TableCell>
+                    <TableCell className="max-w-[300px] truncate">
+                      {transaction.description}
+                    </TableCell>
+                    <TableCell className="font-medium">{transaction.amount}</TableCell>
                     <TableCell>
                       <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         transaction.status === 'Paid' 
@@ -173,12 +228,24 @@ export default function PaymentsPage() {
                         {transaction.status}
                       </div>
                     </TableCell>
-                    <TableCell className="max-w-[200px] truncate">{transaction.description}</TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" className="gap-1">
-                        <Download className="h-4 w-4" />
-                        <span className="sr-only md:not-sr-only md:inline-block">Receipt</span>
-                      </Button>
+                      {transaction.stripe_hosted_invoice_url ? (
+                        <a 
+                          href={transaction.stripe_hosted_invoice_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                        >
+                          <Button variant="ghost" size="sm" className="gap-1">
+                            <Download className="h-4 w-4" />
+                            <span className="sr-only md:not-sr-only md:inline-block">Receipt</span>
+                          </Button>
+                        </a>
+                      ) : (
+                        <Button variant="ghost" size="sm" className="gap-1" disabled>
+                          <Download className="h-4 w-4" />
+                          <span className="sr-only md:not-sr-only md:inline-block">Processing</span>
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))

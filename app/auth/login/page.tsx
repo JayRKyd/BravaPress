@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,6 +12,8 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const searchParams = useSearchParams()
+  const redirectTo = searchParams.get('redirectTo')
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -27,10 +30,16 @@ export default function Login() {
     try {
       const supabase = createClient()
       
+      // Build callback URL with redirect parameter
+      const callbackUrl = new URL('/auth/callback', location.origin)
+      if (redirectTo) {
+        callbackUrl.searchParams.set('next', redirectTo)
+      }
+      
       const { error } = await supabase.auth.signInWithOtp({
         email: email,
         options: {
-          emailRedirectTo: `${location.origin}/auth/callback`,
+          emailRedirectTo: callbackUrl.toString(),
         },
       })
 

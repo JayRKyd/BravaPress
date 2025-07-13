@@ -1,3 +1,8 @@
+export interface ScheduledRelease {
+  date: string;
+  timezone: string;
+}
+
 export interface PressReleaseGenerationParams {
   companyName: string;
   companyDescription: string;
@@ -8,6 +13,7 @@ export interface PressReleaseGenerationParams {
   contactEmail: string;
   contactPhone?: string;
   websiteUrl?: string;
+  scheduledRelease?: ScheduledRelease | null;
 }
 
 export interface PressReleaseContent {
@@ -165,9 +171,14 @@ export async function submitPressRelease(
  */
 export function contentToSubmission(
   content: PressReleaseContent,
-  params: PressReleaseGenerationParams,
-  scheduledDate?: Date
+  params: PressReleaseGenerationParams
 ): PressReleaseSubmission {
+  let scheduledDate: Date | undefined;
+  
+  if (params.scheduledRelease) {
+    scheduledDate = new Date(params.scheduledRelease.date);
+  }
+  
   return {
     title: content.title,
     content: content.fullContent,

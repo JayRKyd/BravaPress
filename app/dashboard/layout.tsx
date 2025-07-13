@@ -3,7 +3,7 @@
 import type React from "react"
 import { usePathname } from "next/navigation"
 import { UserNav } from "@/components/user-nav"
-import { LayoutDashboard, FileText, PlusCircle, CreditCard, Settings, User } from "lucide-react"
+import { LayoutDashboard, FileText, PlusCircle, CreditCard, Settings } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 
@@ -44,11 +44,6 @@ function DashboardLayoutContent({
       icon: CreditCard,
     },
     {
-      title: "Profile",
-      href: "/dashboard/profile",
-      icon: User,
-    },
-    {
       title: "Settings",
       href: "/dashboard/settings",
       icon: Settings,
@@ -58,8 +53,8 @@ function DashboardLayoutContent({
   // If it's an admin route, render without sidebar
   if (isAdminRoute) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background px-6 w-full">
+      <div className="min-h-[calc(100vh-4rem)] bg-gray-50">
+        <header className="sticky top-16 z-10 flex h-16 items-center gap-4 border-b bg-background px-6 w-full">
           <div className="flex items-center gap-2">
             <div className="rounded-md bg-primary p-1">
               <span className="h-6 w-6 text-primary-foreground font-bold text-sm flex items-center justify-center">A</span>
@@ -76,7 +71,7 @@ function DashboardLayoutContent({
 
   // Regular dashboard layout with fixed sidebar
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-[calc(100vh-4rem)] bg-gray-100">
       {/* Fixed Sidebar */}
       <div className="hidden md:flex md:w-64 md:flex-col">
         <div className="flex flex-col flex-grow pt-5 overflow-y-auto bg-white border-r">
@@ -118,22 +113,18 @@ function DashboardLayoutContent({
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top header */}
-        <header className="bg-white shadow-sm border-b">
+        {/* Mobile header */}
+        <div className="md:hidden bg-white shadow-sm border-b sticky top-16 z-10">
           <div className="flex items-center justify-between h-16 px-6">
-            <div className="md:hidden">
-              {/* Mobile menu button - could add mobile menu later */}
               <Link href="/dashboard" className="flex items-center gap-2">
                 <div className="rounded-md bg-primary p-1">
                   <FileText className="h-5 w-5 text-primary-foreground" />
                 </div>
                 <h1 className="text-lg font-bold text-gray-900">BravaPress</h1>
               </Link>
-            </div>
-            <div className="flex-1" />
             <UserNav />
           </div>
-        </header>
+        </div>
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto bg-gray-50">
@@ -157,3 +148,4 @@ export default function DashboardLayout({
     </DashboardLayoutContent>
   )
 }
+

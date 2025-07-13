@@ -9,7 +9,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
-import { Loader2, Save, Send, CheckCircle, ArrowRight, CreditCard, Sparkles, AlertCircle } from "lucide-react"
+import { Loader2, Save, Send, CheckCircle, ArrowRight, CreditCard, Sparkles, AlertCircle, Calendar as CalendarIcon } from "lucide-react"
+import { Calendar } from "@/components/ui/calendar"
+import { format } from "date-fns"
+import { cn } from "@/lib/utils"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import Link from "next/link"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -35,6 +39,12 @@ export function PressReleaseForm() {
   const [paymentComplete, setPaymentComplete] = useState(false)
   const [finalSubmissionResult, setFinalSubmissionResult] = useState<FullSubmissionResult | null>(null)
   
+  // Add scheduling state
+  const [isScheduled, setIsScheduled] = useState(false)
+  const [scheduledDate, setScheduledDate] = useState<Date>()
+  const [scheduledTime, setScheduledTime] = useState<string>("12:00")
+  const [timezone, setTimezone] = useState<string>("UTC")
+  
   // Form data state
   const [formData, setFormData] = useState<PressReleaseGenerationParams>({
     companyName: '',
@@ -45,7 +55,8 @@ export function PressReleaseForm() {
     contactName: '',
     contactEmail: '',
     contactPhone: '',
-    websiteUrl: ''
+    websiteUrl: '',
+    scheduledRelease: null // Add scheduled release data
   })
   
   // Generated content state
@@ -84,6 +95,34 @@ export function PressReleaseForm() {
     setFormData(prev => ({
       ...prev,
       [field]: value
+    }))
+  }
+
+  const handleSchedulingChange = (value: string) => {
+    setIsScheduled(value === "scheduled")
+    if (value !== "scheduled") {
+      setFormData(prev => ({
+        ...prev,
+        scheduledRelease: null
+      }))
+    } else if (scheduledDate) {
+      updateScheduledRelease()
+    }
+  }
+
+  const updateScheduledRelease = () => {
+    if (!scheduledDate || !isScheduled) return
+
+    const [hours, minutes] = scheduledTime.split(":").map(Number)
+    const date = new Date(scheduledDate)
+    date.setHours(hours, minutes)
+
+    setFormData(prev => ({
+      ...prev,
+      scheduledRelease: {
+        date: date.toISOString(),
+        timezone
+      }
     }))
   }
   

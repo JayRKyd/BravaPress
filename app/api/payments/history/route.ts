@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
+import Stripe from 'stripe';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2023-10-16'
+});
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,7 +15,7 @@ export async function GET(request: NextRequest) {
     
     if (authError || !user) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Please log in to view your payment history.' },
         { status: 401 }
       );
     }
@@ -31,6 +36,7 @@ export async function GET(request: NextRequest) {
         payment_amount,
         payment_status,
         stripe_payment_intent_id,
+        stripe_invoice_id,
         status,
         created_at,
         updated_at,
@@ -51,25 +57,45 @@ export async function GET(request: NextRequest) {
     if (queryError) {
       console.error('Error fetching payment history:', queryError);
       return NextResponse.json(
-        { error: 'Failed to fetch payment history' },
+        { error: 'Unable to fetch payment history. Please try again later.' },
         { status: 500 }
       );
     }
 
-    // Transform data to match frontend expectations
-    const formattedTransactions = transactions?.map(transaction => ({
-      id: transaction.stripe_payment_intent_id || transaction.id,
-      date: new Date(transaction.created_at).toLocaleDateString(),
-      amount: transaction.payment_amount ? `$${(transaction.payment_amount / 100).toFixed(2)}` : '$395.00',
-      status: transaction.payment_status === 'completed' ? 'Paid' : 
-              transaction.payment_status === 'failed' ? 'Failed' :
-              transaction.payment_status === 'refunded' ? 'Refunded' : 'Pending',
-      description: `Press Release: ${transaction.title}`,
-      press_release_id: transaction.id,
-      submission_status: transaction.status,
-      submitted_at: transaction.submitted_at,
-      completed_at: transaction.completed_at
-    })) || [];
+    // Transform data and fetch Stripe invoice URLs
+    const formattedTransactions = await Promise.all(transactions?.map(async transaction => {
+      let stripeHostedInvoiceUrl: string | undefined;
+      
+      // Only fetch invoice URL for completed payments
+      if (transaction.stripe_invoice_id && transaction.payment_status === 'completed') {
+        try {
+          const invoice = await stripe.invoices.retrieve(transaction.stripe_invoice_id);
+          stripeHostedInvoiceUrl = invoice.hosted_invoice_url || undefined;
+        } catch (error) {
+          console.error(`Error fetching Stripe invoice ${transaction.stripe_invoice_id}:`, error);
+          // Don't fail the whole request if one invoice fails to load
+        }
+      }
+      
+      return {
+        id: transaction.stripe_payment_intent_id || transaction.id,
+        date: new Date(transaction.created_at).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        }),
+        amount: transaction.payment_amount ? `$${(transaction.payment_amount / 100).toFixed(2)}` : '$395.00',
+        status: transaction.payment_status === 'completed' ? 'Paid' : 
+                transaction.payment_status === 'failed' ? 'Failed' :
+                transaction.payment_status === 'refunded' ? 'Refunded' : 'Pending',
+        description: `Press Release: ${transaction.title}`,
+        press_release_id: transaction.id,
+        submission_status: transaction.status,
+        submitted_at: transaction.submitted_at,
+        completed_at: transaction.completed_at,
+        stripe_hosted_invoice_url: stripeHostedInvoiceUrl
+      };
+    }) || []);
 
     // Get total count for pagination
     const { count, error: countError } = await supabase
@@ -94,7 +120,10 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Unexpected error in payment history:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: 'We encountered an unexpected error. Our team has been notified.',
+        details: process.env.NODE_ENV === 'development' ? String(error) : undefined
+      },
       { status: 500 }
     );
   }

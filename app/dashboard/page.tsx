@@ -35,94 +35,33 @@ export default function DashboardPage() {
           error: sessionError
         })
         
-        // TEMPORARY WORKAROUND: Use a default user ID if no session is found
-        // This is because we've temporarily disabled authentication checks in middleware
-        let userId: string | null = session?.user?.id || null
-        
+        // At this point, we should always have a session due to middleware protection
         if (!session) {
-          console.log('Dashboard: No session found, using temporary guest access')
-          console.log('⚠️ This is a temporary workaround until authentication is fixed')
-          
-          // Try to get the email from localStorage for a better experience
-          let email
-          if (typeof window !== 'undefined') {
-            try {
-              email = localStorage.getItem('supabase-auth-email')
-            } catch (err) {
-              console.error('Error accessing localStorage:', err)
-            }
-          }
-          
-          // Look up the user by email if available
-          if (email) {
-            try {
-              // Use the service role key via the server component
-              const response = await fetch('/api/users/lookup', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email })
-              })
-              
-              const data = await response.json()
-              if (data.user?.id) {
-                userId = data.user.id
-                console.log('Found user ID for email:', userId)
-              }
-            } catch (err) {
-              console.error('Error looking up user by email:', err)
-            }
-          }
-          
-          // If we still don't have a user ID, mark as guest mode
-          if (!userId) {
-            userId = null
-            console.log('Using guest mode - no user ID filtering will be applied')
-          }
+          console.error('Dashboard: No session found despite middleware protection')
+          throw new Error('Authentication required')
         }
         
-        // Fetch press releases
-        let pressReleasesQuery = supabase
+        const userId = session.user.id
+        
+        // Fetch press releases for the authenticated user
+        const { data: pressReleasesData, error: pressReleasesError } = await supabase
           .from('press_releases')
           .select('*')
+          .eq('user_id', userId)
           .order('created_at', { ascending: false })
         
-        // Only filter by user_id if we have a valid user ID
-        if (userId) {
-          pressReleasesQuery = pressReleasesQuery.eq('user_id', userId)
-        } else {
-          // In guest mode, just get some sample data or recent releases
-          pressReleasesQuery = pressReleasesQuery.limit(5)
-        }
-        
-        const { data: pressReleasesData, error: pressReleasesError } = await pressReleasesQuery
         
         if (pressReleasesError) {
           console.error('Error fetching press releases:', pressReleasesError)
           throw new Error(pressReleasesError.message)
         }
         
-        // Fetch user profile if we have a user ID
-        let profileData = null
-        let profileError = null
-        
-        if (userId) {
-          const profileResult = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', userId)
-            .single()
-            
-          profileData = profileResult.data
-          profileError = profileResult.error
-        } else {
-          // Create a guest profile
-          profileData = {
-            id: 'guest',
-            full_name: 'Guest User',
-            company_name: 'Guest Company',
-            is_guest: true
-          }
-        }
+        // Fetch user profile
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single()
         
         if (profileError && profileError.code !== 'PGRST116') { // Ignore not found error
           console.error('Error fetching profile:', profileError)
