@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16'
-});
+// Initialize Stripe only if the secret key is available
+let stripe: Stripe | null = null;
+if (process.env.STRIPE_SECRET_KEY) {
+  stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+    apiVersion: '2025-06-30.basil'
+  });
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -67,7 +71,7 @@ export async function GET(request: NextRequest) {
       let stripeHostedInvoiceUrl: string | undefined;
       
       // Only fetch invoice URL for completed payments
-      if (transaction.stripe_invoice_id && transaction.payment_status === 'completed') {
+      if (transaction.stripe_invoice_id && transaction.payment_status === 'completed' && stripe) {
         try {
           const invoice = await stripe.invoices.retrieve(transaction.stripe_invoice_id);
           stripeHostedInvoiceUrl = invoice.hosted_invoice_url || undefined;
