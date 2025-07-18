@@ -29,13 +29,13 @@ const Header = () => {
             <div className="flex items-center">
               <div className="flex items-center space-x-2">
                 <Image
-                  src="/images/bravapress-logo.png"
+                  src="/images/bravapress-logoandname(1).png"
                   alt="BravaPress Logo"
                   width={64}
                   height={64}
                   className="w-16 h-16"
                 />
-                <span className="text-xl font-semibold text-gray-900">BravaPress</span>
+
               </div>
             </div>
             <div className="hidden md:flex items-center space-x-4">
@@ -53,15 +53,14 @@ const Header = () => {
         <div className="flex justify-between items-center py-4">
           {/* Logo */}
           <div className="flex items-center">
-            <Link href="/" className="flex items-center space-x-2">
+            <Link href="/" className="flex items-center">
               <Image
-                src="/images/bravapress-logo.png"
+                src="/bravapress-logoandname.png"
                 alt="BravaPress Logo"
-                width={64}
-                height={64}
-                className="w-16 h-16"
+                width={180}
+                height={40}
+                className="h-10 w-auto"
               />
-              <span className="text-xl font-semibold text-gray-900">BravaPress</span>
             </Link>
           </div>
 
@@ -69,14 +68,14 @@ const Header = () => {
           <nav className="hidden md:flex items-center space-x-8">
             {!isLoggedIn && (
               <>
-                <Link href="#platform" className="text-gray-600 hover:text-gray-900 font-medium">
-                  Platform
-                </Link>
-                <Link href="#use-cases" className="text-gray-600 hover:text-gray-900 font-medium">
-                  Use Cases
-                </Link>
-                <Link href="#pricing" className="text-gray-600 hover:text-gray-900 font-medium">
+                <Link href="/pricing" className="text-gray-600 hover:text-gray-900 font-medium">
                   Pricing
+                </Link>
+                <Link href="/faq" className="text-gray-600 hover:text-gray-900 font-medium">
+                  FAQ
+                </Link>
+                <Link href="/contact" className="text-gray-600 hover:text-gray-900 font-medium">
+                  Contact
                 </Link>
               </>
             )}
@@ -124,25 +123,25 @@ const Header = () => {
               {!isLoggedIn && (
                 <>
                   <Link 
-                    href="#platform" 
-                    className="text-gray-600 hover:text-gray-900 font-medium"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Platform
-                  </Link>
-                  <Link 
-                    href="#use-cases" 
-                    className="text-gray-600 hover:text-gray-900 font-medium"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Use Cases
-                  </Link>
-                  <Link 
-                    href="#pricing" 
+                    href="/pricing" 
                     className="text-gray-600 hover:text-gray-900 font-medium"
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     Pricing
+                  </Link>
+                  <Link 
+                    href="/faq" 
+                    className="text-gray-600 hover:text-gray-900 font-medium"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    FAQ
+                  </Link>
+                  <Link 
+                    href="/contact" 
+                    className="text-gray-600 hover:text-gray-900 font-medium"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Contact
                   </Link>
                 </>
               )}

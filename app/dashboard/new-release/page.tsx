@@ -7,7 +7,7 @@ import { PressReleaseForm } from "./press-release-form"
 
 export default function NewReleasePage() {
   return (
-    <div className="space-y-6 w-full max-w-full">
+    <div className="space-y-6">
       <div className="flex items-center gap-2">
         <Link href="/dashboard">
           <Button variant="ghost" size="icon">

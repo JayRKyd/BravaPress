@@ -55,14 +55,14 @@ export default function Home() {
                 className="space-y-8"
               >
                 <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight text-gray-900">
-                  An Easy-to-Use Analytics Platform for{' '}
+                  Get Featured on Major News Sites in days{' '}
                   <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                    Growing Businesses
+                  - Guaranteed
                   </span>
                 </h1>
                 <p className="text-xl text-gray-600 leading-relaxed">
-                  BravaPress makes it easy for you to centralize your data then use it to{' '}
-                  <span className="font-semibold text-gray-900">make better decisions and improve performance</span>
+                BravaPress delivers AI-assisted press releases, distributed through guaranteed premium media channels—without agency retainers or long delays.{' '}
+                  <span className="font-semibold text-gray-900">Perfect for product launches, company milestones, thought leadership, or building authority and SEO</span>
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4">
                   <Button
@@ -79,7 +79,9 @@ export default function Home() {
                     size="lg"
                     className="border-gray-300 text-gray-700 hover:bg-gray-50 px-8 py-4 text-lg font-medium rounded-lg"
                   >
-                    Book a Demo
+                    <Link href="/pricing">
+                      See Pricing
+                    </Link>
                   </Button>
                 </div>
               </motion.div>
@@ -153,65 +155,96 @@ export default function Home() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-8">
               <p className="text-gray-600 font-medium">
-                Trusted by 20,000+ growing businesses
+              Distributed via 100+ Media Partners to 170M+ Monthly Readers
               </p>
             </div>
             <div className="flex flex-wrap justify-center items-center gap-8 md:gap-12">
               {/* Google News */}
-              <div className="flex items-center space-x-2 opacity-60 hover:opacity-100 transition-opacity">
-                <div className="w-6 h-6 bg-blue-500 rounded"></div>
-                <span className="text-gray-700 font-medium">Google News</span>
+              <div className=" hover:opacity-100 transition-opacity">
+                <Image 
+                  src="/news-1.png" 
+                  alt="Google News" 
+                  width={120} 
+                  height={40} 
+                  className="object-contain"
+                />
               </div>
               
               {/* AP */}
-              <div className="flex items-center opacity-60 hover:opacity-100 transition-opacity">
-                <span className="text-red-600 font-bold text-xl border-2 border-red-600 px-2 py-1">AP</span>
+              <div className=" hover:opacity-100 transition-opacity">
+                <Image 
+                  src="/news-2.png" 
+                  alt="Associated Press" 
+                  width={80} 
+                  height={40} 
+                  className="object-contain"
+                />
               </div>
               
               {/* Benzinga */}
-              <div className="opacity-60 hover:opacity-100 transition-opacity">
-                <span className="text-gray-800 font-bold text-lg">BENZINGA</span>
+              <div className=" hover:opacity-100 transition-opacity">
+                <Image 
+                  src="/news-3.png" 
+                  alt="Benzinga" 
+                  width={120} 
+                  height={40} 
+                  className="object-contain"
+                />
               </div>
               
               {/* ABC */}
-              <div className="flex items-center opacity-60 hover:opacity-100 transition-opacity">
-                <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">abc</span>
-                </div>
+              <div className=" hover:opacity-100 transition-opacity">
+                <Image 
+                  src="/news-4.png" 
+                  alt="ABC News" 
+                  width={80} 
+                  height={40} 
+                  className="object-contain"
+                />
               </div>
               
               {/* FOX */}
-              <div className="opacity-60 hover:opacity-100 transition-opacity">
-                <span className="text-orange-500 font-bold text-xl">FOX</span>
+              <div className=" hover:opacity-100 transition-opacity">
+                <Image 
+                  src="/news-5.png" 
+                  alt="FOX News" 
+                  width={80} 
+                  height={40} 
+                  className="object-contain"
+                />
               </div>
               
               {/* NBC */}
-              <div className="flex items-center space-x-1 opacity-60 hover:opacity-100 transition-opacity">
-                <div className="flex space-x-1">
-                  <div className="w-2 h-6 bg-red-500"></div>
-                  <div className="w-2 h-6 bg-orange-500"></div>
-                  <div className="w-2 h-6 bg-yellow-500"></div>
-                  <div className="w-2 h-6 bg-green-500"></div>
-                  <div className="w-2 h-6 bg-blue-500"></div>
-                  <div className="w-2 h-6 bg-purple-500"></div>
-                </div>
-                <span className="text-gray-800 font-bold">NBC</span>
+              <div className=" hover:opacity-100 transition-opacity">
+                <Image 
+                  src="/news-6.png" 
+                  alt="NBC News" 
+                  width={80} 
+                  height={40} 
+                  className="object-contain"
+                />
               </div>
               
               {/* Bloomberg Terminal */}
-              <div className="opacity-60 hover:opacity-100 transition-opacity">
-                <div className="text-center">
-                  <div className="text-orange-500 font-bold">Bloomberg</div>
-                  <div className="text-xs text-gray-600">Terminal</div>
-                </div>
+              <div className=" hover:opacity-100 transition-opacity">
+                <Image 
+                  src="/news-7.png" 
+                  alt="Bloomberg Terminal" 
+                  width={160} 
+                  height={40} 
+                  className="object-contain"
+                />
               </div>
               
               {/* Yahoo News */}
-              <div className="flex items-center space-x-2 opacity-60 hover:opacity-100 transition-opacity">
-                <div className="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold text-xs">Y!</span>
-                </div>
-                <span className="text-gray-800 font-medium">yahoo! news</span>
+              <div className=" hover:opacity-100 transition-opacity">
+                <Image 
+                  src="/news-8.png" 
+                  alt="Yahoo News" 
+                  width={120} 
+                  height={40} 
+                  className="object-contain"
+                />
               </div>
             </div>
           </div>
@@ -358,20 +391,13 @@ export default function Home() {
   
             {/* Center Image */}
             <div className="flex justify-center mb-16">
-              <div className="relative">
-                <div className="w-80 h-48 md:w-96 md:h-60 rounded-full overflow-hidden shadow-2xl">
-                  <div className="w-full h-full bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">
-                    <div className="text-center">
-                      <div className="w-16 h-16 bg-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                        </svg>
-                      </div>
-                      <p className="text-gray-700 font-medium">Professional PR Platform</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <Image 
+                src="/Announcement 07.png" 
+                alt="Two people announcing with megaphones" 
+                width={400} 
+                height={400} 
+                className="object-contain"
+              />
             </div>
   
             {/* Bottom Section */}
@@ -427,10 +453,10 @@ export default function Home() {
                       <span className="text-gray-700">30+ language support</span>
                     </li>
                   </ul>
-                  <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                  {/* <Button className="bg-blue-600 hover:bg-blue-700 text-white">
                     Explore AI Writing
                     <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
+                  </Button> */}
                 </div>
                 <div className="relative">
                   <div className="bg-white rounded-2xl shadow-xl p-6 border">
@@ -547,10 +573,10 @@ export default function Home() {
                       <span className="text-gray-700">Social platforms and mobile news apps</span>
                     </li>
                   </ul>
-                  <Button className="bg-purple-600 hover:bg-purple-700 text-white">
+                  {/* <Button className="bg-purple-600 hover:bg-purple-700 text-white">
                     Explore Distribution
                     <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
+                  </Button> */}
                 </div>
               </div>
             </div>
@@ -588,10 +614,10 @@ export default function Home() {
                       <span className="text-gray-700">Published to high-authority domains for credibility</span>
                     </li>
                   </ul>
-                  <Button className="bg-orange-600 hover:bg-orange-700 text-white">
+                  {/* <Button className="bg-orange-600 hover:bg-orange-700 text-white">
                     Explore SEO Benefits
                     <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
+                  </Button> */}
                 </div>
                 <div className="relative">
                   <div className="bg-white rounded-2xl shadow-xl p-6 border">
@@ -703,10 +729,10 @@ export default function Home() {
                       <span className="text-gray-700">Monitor SEO impact and backlink growth</span>
                     </li>
                   </ul>
-                  <Button className="bg-yellow-600 hover:bg-yellow-700 text-white">
+                  {/* <Button className="bg-yellow-600 hover:bg-yellow-700 text-white">
                     Explore Tracking
                     <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
+                  </Button> */}
                 </div>
               </div>
             </div>
@@ -740,10 +766,10 @@ export default function Home() {
                       <span className="text-gray-700">Industry-specific media outlet selection</span>
                     </li>
                   </ul>
-                  <Button className="bg-green-600 hover:bg-green-700 text-white">
+                  {/* <Button className="bg-green-600 hover:bg-green-700 text-white">
                     Explore Global Reach
                     <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
+                  </Button> */}
                 </div>
                 <div className="relative">
                   <div className="bg-white rounded-2xl shadow-xl p-6 border">
@@ -791,80 +817,7 @@ export default function Home() {
             </div>
   
             {/* Feature 6: Competitive Analysis */}
-            <div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-                <div className="relative">
-                  <div className="bg-white rounded-2xl shadow-xl p-6 border">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-3 h-3 bg-red-400 rounded-full"></div>
-                      <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
-                      <div className="w-3 h-3 bg-green-400 rounded-full"></div>
-                    </div>
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-900">Industry Comparison</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                            <span className="text-purple-600 text-xs font-bold">📊</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-xs text-gray-600 mb-2">You are performing 67% of the companies in this cohort</div>
-                      <div className="bg-gradient-to-r from-green-100 to-green-200 rounded-lg p-4 relative">
-                        <div className="text-lg font-bold text-gray-900 mb-1">232k</div>
-                        <div className="text-sm text-gray-600">Monthly reach</div>
-                        <div className="absolute right-4 top-4">
-                          <div className="bg-blue-600 text-white px-2 py-1 rounded text-xs font-medium">
-                            You are here
-                          </div>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-gray-600">Industry average</span>
-                          <span className="font-medium text-gray-900">185k</span>
-                        </div>
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-gray-600">Top performers</span>
-                          <span className="font-medium text-gray-900">420k+</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <div className="inline-flex items-center gap-2 bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium mb-6">
-                    <span>📊</span>
-                    <span>Competitive Analysis</span>
-                  </div>
-                  <h3 className="text-3xl font-bold text-gray-900 mb-4">
-                    Stay ahead with industry benchmarking
-                  </h3>
-                  <p className="text-lg text-gray-600 mb-6">
-                    Compare your PR performance against industry standards and competitors
-                    to identify opportunities for improvement and growth.
-                  </p>
-                  <ul className="space-y-3 mb-8">
-                    <li className="flex items-start gap-3">
-                      <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-                      <span className="text-gray-700">Industry benchmark comparisons</span>
-                    </li>
-                    <li className="flex items-start gap-3">
-                      <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-                      <span className="text-gray-700">Competitive media coverage analysis</span>
-                    </li>
-                    <li className="flex items-start gap-3">
-                      <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-                      <span className="text-gray-700">Performance gap identification</span>
-                    </li>
-                  </ul>
-                  <Button className="bg-purple-600 hover:bg-purple-700 text-white">
-                    Explore Benchmarks
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
+
           </div>
         </section>
   
@@ -893,7 +846,7 @@ export default function Home() {
                 asChild
               >
                 <Link href="/auth/login">
-                  Try It Free
+                  Get Published
                 </Link>
               </Button>
               <Button
@@ -901,13 +854,13 @@ export default function Home() {
                 className="bg-gray-800 text-white hover:bg-white hover:text-gray-900 font-semibold px-8 py-3"
                 asChild
               >
-                <Link href="/contact">
-                  Book A Demo
+                <Link href="/pricing">
+                  See Pricing
                 </Link>
               </Button>
             </div>
             
-            <div className="text-left max-w-4xl mx-auto">
+            {/* <div className="text-left max-w-4xl mx-auto">
               <p className="text-sm text-gray-400 mb-4">Latest from our blog</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
                 <div>
@@ -927,7 +880,7 @@ export default function Home() {
                   </p>
                 </div>
               </div>
-            </div>
+            </div> */}
           </div>
         </section>
   
