@@ -1,259 +1,176 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Download, Receipt, Loader2, AlertCircle, WifiOff } from "lucide-react"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Card } from "@/components/ui/card"
+import { ArrowLeft, FileText, Calendar, DollarSign, ExternalLink, RefreshCw } from "lucide-react"
 import Link from "next/link"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { useToast } from "@/components/ui/use-toast"
 
-interface Transaction {
-  id: string;
-  date: string;
-  amount: string;
-  status: string;
-  description: string;
-  press_release_id: string;
-  submission_status: string;
-  stripe_hosted_invoice_url?: string;
+// Mock payment data - replace with real Stripe data later
+const mockPayments: Payment[] = []
+
+type PaymentStatus = "completed" | "pending" | "failed"
+
+interface Payment {
+  id: string
+  date: string
+  amount: number
+  status: PaymentStatus
+  pressReleaseTitle: string
+  invoiceUrl: string
 }
 
-export default function PaymentsPage() {
-  const { toast } = useToast();
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<{ type: 'network' | 'auth' | 'unknown'; message: string } | null>(null);
-
-  // Fetch transaction history from API
-  const fetchTransactions = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await fetch('/api/payments/history');
-      
-      if (response.status === 401) {
-        setError({ type: 'auth', message: 'Please log in to view your payment history.' });
-        return;
-      }
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch transaction history');
-      }
-      
-      const data = await response.json();
-      setTransactions(data.transactions || []);
-    } catch (err) {
-      console.error('Error fetching transactions:', err);
-      setError(
-        !window.navigator.onLine 
-          ? { type: 'network', message: 'Please check your internet connection and try again.' }
-          : { type: 'unknown', message: 'Unable to load payment history. Please try again later.' }
-      );
-      toast({
-        title: "Error Loading Payments",
-        description: "We couldn't load your payment history. Please try again later.",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+export default function PaymentHistoryPage() {
+  const [payments, setPayments] = useState<Payment[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
 
   useEffect(() => {
-    fetchTransactions();
-  }, []);
-
-  const ErrorDisplay = () => {
-    switch (error?.type) {
-      case 'network':
-        return (
-          <Alert variant="destructive">
-            <WifiOff className="h-4 w-4" />
-            <AlertTitle>Connection Error</AlertTitle>
-            <AlertDescription>
-              {error.message}
-              <Button 
-                variant="outline" 
-                className="mt-4 w-full"
-                onClick={fetchTransactions}
-              >
-                Try Again
-              </Button>
-            </AlertDescription>
-          </Alert>
-        );
-      case 'auth':
-        return (
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Authentication Required</AlertTitle>
-            <AlertDescription>
-              {error.message}
-              <Link href="/auth/login">
-                <Button className="mt-4 w-full">
-                  Log In
-                </Button>
-              </Link>
-            </AlertDescription>
-          </Alert>
-        );
-      default:
-        return (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>
-              {error?.message}
-              <Button 
-                variant="outline" 
-                className="mt-4 w-full"
-                onClick={fetchTransactions}
-              >
-                Try Again
-              </Button>
-            </AlertDescription>
-          </Alert>
-        );
+    // Simulate loading payment data
+    const loadPayments = async () => {
+      try {
+        setLoading(true)
+        // Simulate API call delay
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        
+        // For now, use mock data
+        // TODO: Replace with actual Stripe API call
+        setPayments(mockPayments)
+        setError(false)
+      } catch (err) {
+        setError(true)
+      } finally {
+        setLoading(false)
+      }
     }
-  };
 
-  const PageHeader = () => (
-    <div className="flex items-center gap-2">
-      <Link href="/dashboard">
-        <Button variant="ghost" size="icon">
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-      </Link>
-      <h1 className="text-3xl font-bold tracking-tight">Payment History</h1>
-    </div>
-  );
+    loadPayments()
+  }, [])
+
+  const handleRetry = () => {
+    setLoading(true)
+    setError(false)
+    // Simulate retry
+    setTimeout(() => {
+      setPayments(mockPayments)
+      setLoading(false)
+    }, 1000)
+  }
+
+  const getStatusColor = (status: PaymentStatus) => {
+    switch (status) {
+      case "completed":
+        return "text-green-600 bg-green-100"
+      case "pending":
+        return "text-yellow-600 bg-yellow-100"
+      case "failed":
+        return "text-red-600 bg-red-100"
+      default:
+        return "text-gray-600 bg-gray-100"
+    }
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })
+  }
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <PageHeader />
-        <Card>
-          <CardContent className="min-h-[400px] flex items-center justify-center">
-            <div className="text-center">
-              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-              <p className="text-sm text-muted-foreground">Loading payment history...</p>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-accent" />
+          <p className="text-brava-600">Loading payment history...</p>
+        </div>
       </div>
-    );
+    )
   }
 
   if (error) {
     return (
-      <div className="space-y-6">
-        <PageHeader />
-        <Card>
-          <CardContent className="py-6">
-            <ErrorDisplay />
-          </CardContent>
-        </Card>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <FileText className="w-8 h-8 text-red-600" />
+          </div>
+          <h3 className="text-xl font-semibold mb-2">Unable to load payment history</h3>
+          <p className="text-brava-600 mb-6">Please try again later</p>
+          <Button onClick={handleRetry} className="bg-accent hover:bg-accent/90">
+            Try Again
+          </Button>
+        </div>
       </div>
-    );
+    )
+  }
+
+  if (payments.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <FileText className="w-8 h-8 text-gray-600" />
+          </div>
+          <h3 className="text-xl font-semibold mb-2">No payment history yet</h3>
+          <p className="text-brava-600 mb-6">Make your first press release to see your payment history here</p>
+          <Button asChild className="bg-accent hover:bg-accent/90">
+            <Link href="/dashboard/new-release">
+              Create Your First Release
+            </Link>
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6">
-      <PageHeader />
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="sm" asChild>
+          <Link href="/dashboard">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
+          </Link>
+        </Button>
+        <h1 className="text-2xl font-bold">Payment History</h1>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Payment History</CardTitle>
-          <CardDescription>View your payment history and download receipts</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-md border p-4 bg-muted/30 mb-6 flex items-start gap-3">
-            <Receipt className="h-5 w-5 text-primary mt-0.5" />
-            <div>
-              <p className="font-medium">Secure Payments via Stripe</p>
-              <p className="text-sm text-muted-foreground">
-                All payments are processed securely through Stripe. Download your receipts anytime for your records.
-              </p>
+      <div className="space-y-4">
+        {payments.map((payment) => (
+          <Card key={payment.id} className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-4 mb-2">
+                  <h3 className="font-semibold">{payment.pressReleaseTitle}</h3>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(payment.status)}`}>
+                    {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
+                  </span>
+                </div>
+                
+                <div className="flex items-center gap-6 text-sm text-brava-600">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    {formatDate(payment.date)}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="w-4 h-4" />
+                    ${payment.amount}
+                  </div>
+                </div>
+              </div>
+
+              <Button variant="outline" size="sm" asChild>
+                <Link href={payment.invoiceUrl} target="_blank">
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  View Invoice
+                </Link>
+              </Button>
             </div>
-          </div>
-
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Receipt</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {transactions.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-12">
-                    <div className="text-muted-foreground">
-                      <Receipt className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p className="text-lg font-medium mb-2">No Payments Yet</p>
-                      <p className="text-sm max-w-[400px] mx-auto mb-4">
-                        Once you create and submit your first press release, your payment history will appear here.
-                      </p>
-                      <Link href="/dashboard/new-release">
-                        <Button>
-                          Create Press Release
-                        </Button>
-                      </Link>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                transactions.map((transaction) => (
-                  <TableRow key={transaction.id}>
-                    <TableCell>{transaction.date}</TableCell>
-                    <TableCell className="max-w-[300px] truncate">
-                      {transaction.description}
-                    </TableCell>
-                    <TableCell className="font-medium">{transaction.amount}</TableCell>
-                    <TableCell>
-                      <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        transaction.status === 'Paid' 
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-                          : transaction.status === 'Failed'
-                          ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
-                          : transaction.status === 'Refunded'
-                          ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
-                          : 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300'
-                      }`}>
-                        {transaction.status}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {transaction.stripe_hosted_invoice_url ? (
-                        <a 
-                          href={transaction.stripe_hosted_invoice_url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                        >
-                          <Button variant="ghost" size="sm" className="gap-1">
-                            <Download className="h-4 w-4" />
-                            <span className="sr-only md:not-sr-only md:inline-block">Receipt</span>
-                          </Button>
-                        </a>
-                      ) : (
-                        <Button variant="ghost" size="sm" className="gap-1" disabled>
-                          <Download className="h-4 w-4" />
-                          <span className="sr-only md:not-sr-only md:inline-block">Processing</span>
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+          </Card>
+        ))}
+      </div>
     </div>
   )
 }

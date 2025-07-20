@@ -43,11 +43,6 @@ function DashboardLayoutContent({
       href: "/dashboard/payments",
       icon: CreditCard,
     },
-    {
-      title: "Settings",
-      href: "/dashboard/settings",
-      icon: Settings,
-    },
   ]
 
   // If it's an admin route, render without sidebar

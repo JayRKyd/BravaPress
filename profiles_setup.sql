@@ -3,9 +3,39 @@
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT,
+  full_name TEXT,
+  company TEXT,
+  phone TEXT,
+  website TEXT,
+  email_preferences JSONB DEFAULT '{"statusUpdates": true, "distributionReports": true}',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
+
+-- Add missing columns if they don't exist
+DO $$
+BEGIN
+  -- Add company column if it doesn't exist
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'company') THEN
+    ALTER TABLE public.profiles ADD COLUMN company TEXT;
+  END IF;
+  
+  -- Add phone column if it doesn't exist
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'phone') THEN
+    ALTER TABLE public.profiles ADD COLUMN phone TEXT;
+  END IF;
+  
+  -- Add website column if it doesn't exist
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'website') THEN
+    ALTER TABLE public.profiles ADD COLUMN website TEXT;
+  END IF;
+  
+  -- Add email_preferences column if it doesn't exist
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'email_preferences') THEN
+    ALTER TABLE public.profiles ADD COLUMN email_preferences JSONB DEFAULT '{"statusUpdates": true, "distributionReports": true}';
+  END IF;
+END
+$$;
 
 -- If the table already exists but doesn't have the foreign key constraint, add it
 DO $$
