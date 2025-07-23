@@ -151,7 +151,7 @@ export default function DashboardPage() {
               <div className="w-full">
                 <h2 className="text-lg font-medium">Welcome, {profile.full_name || profile.email || 'User'}</h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {profile.company ? `${profile.company}` : 'Complete your profile in settings'}
+                  {profile.company ? `${profile.company}` : 'Harness the power of AI to publish your next press release—faster, smarter, and with greater impact.'}
                 </p>
               </div>
             </div>

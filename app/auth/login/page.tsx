@@ -46,7 +46,7 @@ export default function Login() {
       if (error) {
         setError(error.message)
       } else {
-        setMessage('Check your email for the magic link!')
+        setMessage('Check your email for the login link!')
       }
     } catch (error) {
       setError('An unexpected error occurred. Please try again.')
@@ -57,12 +57,12 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="flex min-h-screen items-center justify-center px-4 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl text-center">Sign in to BravaPress</CardTitle>
           <CardDescription className="text-center">
-            Enter your email to receive a magic link
+            Enter your email to receive your signup/login link
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -79,7 +79,7 @@ export default function Login() {
             </div>
             
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Sending...' : 'Send Magic Link'}
+              {loading ? 'Sending...' : 'Send me a login link'}
             </Button>
             
             {error && (

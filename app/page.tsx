@@ -91,60 +91,16 @@ export default function Home() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.6, delay: 0.2 }}
-                className="relative"
+                className="flex justify-center items-center"
               >
-                <div className="relative bg-gradient-to-br from-blue-400 via-purple-500 to-pink-500 rounded-3xl p-8 overflow-hidden">
-                  {/* Background elements */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-blue-400/20 via-purple-500/20 to-pink-500/20"></div>
-                  <div className="absolute top-4 left-4 w-16 h-16 bg-white/20 rounded-full"></div>
-                  <div className="absolute top-8 right-8 w-8 h-8 bg-white/30 rounded-full"></div>
-                  <div className="absolute bottom-8 left-8 w-12 h-12 bg-white/25 rounded-full"></div>
-                  
-                  {/* Main illustration content */}
-                  <div className="relative z-10">
-                    {/* Presentation screen */}
-                    <div className="bg-white rounded-lg p-4 mb-6 shadow-lg">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex space-x-2">
-                          <div className="w-3 h-3 bg-red-400 rounded-full"></div>
-                          <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
-                          <div className="w-3 h-3 bg-green-400 rounded-full"></div>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="h-2 bg-blue-200 rounded w-3/4"></div>
-                        <div className="h-2 bg-purple-200 rounded w-1/2"></div>
-                        <div className="h-2 bg-pink-200 rounded w-2/3"></div>
-                      </div>
-                    </div>
-                    
-                    {/* People presenting */}
-                    <div className="flex justify-center space-x-4">
-                      {/* Person 1 */}
-                      <div className="flex flex-col items-center">
-                        <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-full mb-2 flex items-center justify-center">
-                          <div className="w-8 h-8 bg-white rounded-full"></div>
-                        </div>
-                        <div className="w-16 h-20 bg-green-500 rounded-t-full"></div>
-                      </div>
-                      
-                      {/* Person 2 */}
-                      <div className="flex flex-col items-center">
-                        <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-orange-600 rounded-full mb-2 flex items-center justify-center">
-                          <div className="w-8 h-8 bg-white rounded-full"></div>
-                        </div>
-                        <div className="w-16 h-20 bg-orange-500 rounded-t-full"></div>
-                      </div>
-                    </div>
-                    
-                    {/* Audience silhouettes */}
-                    <div className="flex justify-center space-x-2 mt-4">
-                      {[...Array(4)].map((_, i) => (
-                        <div key={i} className="w-8 h-8 bg-gray-800/60 rounded-full"></div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                <Image
+                  src="/PressConference.png"
+                  alt="Press conference illustration"
+                  width={600}
+                  height={450}
+                  className="object-contain w-full max-w-2xl"
+                  priority
+                />
               </motion.div>
             </div>
           </div>
@@ -394,8 +350,8 @@ export default function Home() {
               <Image 
                 src="/Announcement 07.png" 
                 alt="Two people announcing with megaphones" 
-                width={400} 
-                height={400} 
+                width={300} 
+                height={300} 
                 className="object-contain"
               />
             </div>
