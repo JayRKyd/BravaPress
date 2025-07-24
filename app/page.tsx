@@ -350,8 +350,8 @@ export default function Home() {
               <Image 
                 src="/Announcement 07.png" 
                 alt="Two people announcing with megaphones" 
-                width={300} 
-                height={300} 
+                width={200} 
+                height={200} 
                 className="object-contain"
               />
             </div>

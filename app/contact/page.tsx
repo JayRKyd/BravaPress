@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Mail, Phone, Clock, Building } from "lucide-react"
+import { Mail, Clock, Building } from "lucide-react"
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({
@@ -47,14 +47,7 @@ export default function ContactPage() {
                 </div>
               </div>
 
-              <div className="flex items-start gap-4">
-                <Phone className="w-6 h-6 text-accent mt-1" />
-                <div>
-                  <h3 className="font-medium mb-1">Call Us</h3>
-                  <p className="text-brava-600">+1 (555) 123-4567</p>
-                  <p className="text-sm text-brava-500">Monday to Friday, 9am - 5pm EST</p>
-                </div>
-              </div>
+
 
               <div className="flex items-start gap-4">
                 <Building className="w-6 h-6 text-accent mt-1" />
@@ -69,8 +62,8 @@ export default function ContactPage() {
                 <Clock className="w-6 h-6 text-accent mt-1" />
                 <div>
                   <h3 className="font-medium mb-1">Response Time</h3>
-                  <p className="text-brava-600">Within 24 Hours</p>
-                  <p className="text-sm text-brava-500">We aim to respond to all inquiries within one business day</p>
+                  <p className="text-brava-600">2–3 business days</p>
+                  <p className="text-sm text-brava-500">We aim to respond to all inquiries within 2–3 business days</p>
                 </div>
               </div>
             </div>

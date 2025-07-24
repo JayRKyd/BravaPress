@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function Login() {
@@ -12,6 +14,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [agreedToTerms, setAgreedToTerms] = useState(false)
   const searchParams = useSearchParams()
   const redirectTo = searchParams.get('redirectTo')
 
@@ -20,6 +23,11 @@ export default function Login() {
     
     if (!email) {
       setError('Please enter your email address')
+      return
+    }
+
+    if (!agreedToTerms) {
+      setError('You need to agree to the terms of service and privacy policy to proceed')
       return
     }
 
@@ -78,7 +86,26 @@ export default function Login() {
               />
             </div>
             
-            <Button type="submit" className="w-full" disabled={loading}>
+            <div className="flex items-start space-x-3">
+              <Checkbox
+                id="terms"
+                checked={agreedToTerms}
+                onCheckedChange={(checked) => setAgreedToTerms(checked as boolean)}
+                disabled={loading}
+              />
+              <label htmlFor="terms" className="text-sm leading-5 text-muted-foreground">
+                I agree to the{' '}
+                <Link href="/legal/terms" className="text-primary hover:underline" target="_blank">
+                  Terms and Conditions (including editorial guidelines)
+                </Link>{' '}
+                and the{' '}
+                <Link href="/legal/privacy" className="text-primary hover:underline" target="_blank">
+                  Privacy Policy
+                </Link>
+              </label>
+            </div>
+            
+            <Button type="submit" className="w-full bg-blue-500 hover:bg-blue-600 text-white" disabled={loading || !agreedToTerms}>
               {loading ? 'Sending...' : 'Send me a login link'}
             </Button>
             

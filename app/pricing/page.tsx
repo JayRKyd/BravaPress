@@ -2,6 +2,7 @@
 
 import { CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import Link from "next/link"
 
 const features = [
   {
@@ -71,9 +72,11 @@ export default function PricingPage() {
           </div>
 
           <div className="mt-8">
-            <Button className="w-full bg-accent hover:bg-accent/90 text-white">
-              Get Started Now
-            </Button>
+            <Link href="/auth/login">
+              <Button className="w-full bg-accent hover:bg-accent/90 text-white">
+                Get Started Now
+              </Button>
+            </Link>
           </div>
         </div>
       </div>
