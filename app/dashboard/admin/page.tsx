@@ -271,7 +271,32 @@ export default function AdminDashboard() {
       case 'processing': return 'bg-blue-100 text-blue-800'
       case 'paid': return 'bg-purple-100 text-purple-800'
       case 'payment_pending': return 'bg-yellow-100 text-yellow-800'
+      case 'payment_required_manual': return 'bg-orange-100 text-orange-800'
       default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const approveManualPayment = async (submissionId: string) => {
+    try {
+      const response = await fetch('/api/admin/manual-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          action: 'approve_payment', 
+          submission_id: submissionId 
+        })
+      })
+      
+      if (response.ok) {
+        toast.success('Manual payment approved, job queued for retry')
+        fetchPressReleases()
+        fetchMetrics()
+      } else {
+        toast.error('Failed to approve manual payment')
+      }
+    } catch (error) {
+      console.error('Failed to approve manual payment:', error)
+      toast.error('Failed to approve manual payment')
     }
   }
 
@@ -445,6 +470,7 @@ export default function AdminDashboard() {
                 <SelectItem value="processing">Processing</SelectItem>
                 <SelectItem value="completed">Completed</SelectItem>
                 <SelectItem value="failed">Failed</SelectItem>
+                <SelectItem value="payment_required_manual">Manual Payment Required</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -479,6 +505,18 @@ export default function AdminDashboard() {
                     </TableCell>
                     <TableCell>${pr.payment_amount}</TableCell>
                     <TableCell>{new Date(pr.created_at).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      {pr.status === 'payment_required_manual' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => approveManualPayment(pr.id)}
+                          className="mr-2"
+                        >
+                          Approve & Retry
+                        </Button>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

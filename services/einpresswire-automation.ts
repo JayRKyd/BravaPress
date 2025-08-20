@@ -31,6 +31,7 @@ export interface PurchaseResult {
     password?: string;
     submissionUrl?: string;
   };
+  requiresManualPayment?: boolean; // Added for credit mode
 }
 
 export class EINPresswireAutomation {
@@ -147,33 +148,200 @@ export class EINPresswireAutomation {
       // Take screenshot for debugging
       const pricingScreenshot = await this.takeScreenshot();
       
-      // Look for package selection buttons
-      const packageSelectors = {
-        basic: '[data-package="basic"], .package-basic button, text="Get Started" >> nth=0',
-        premium: '[data-package="premium"], .package-premium button, text="Get Started" >> nth=1', 
-        enterprise: '[data-package="enterprise"], .package-enterprise button, text="Get Started" >> nth=2'
-      };
-
-      // Try multiple selectors for robustness
-      const selector = packageSelectors[packageType];
-      let packageButton = null;
-
-      // Try various selector strategies
+      // Try to dismiss cookie/consent banners or overlays that might block clicks
       try {
-        packageButton = this.page.locator(selector).first();
+        const consentSelectors = [
+          'button:has-text("I Agree")',
+          'button:has-text("Accept")',
+          'button[aria-label="Close"]',
+          'button:has-text("×")',
+          '.cc-allow',
+          '.cc-accept',
+          '.cookie-consent .close',
+          '.cookie-bar .close'
+        ];
+        for (const s of consentSelectors) {
+          const el = this.page.locator(s).first();
+          if (await el.isVisible({ timeout: 1000 }).catch(() => false)) {
+            await el.click({ force: true }).catch(() => {});
+            console.log('🧹 Dismissed consent/overlay via selector:', s);
+            break;
+          }
+        }
+      } catch {}
+
+      // Remove any fixed cookie bars/overlays that still block the bottom area
+      try {
+        await this.page.evaluate(() => {
+          const elements = Array.from(document.querySelectorAll<HTMLElement>('div, section, footer'));
+          for (const el of elements) {
+            const style = window.getComputedStyle(el);
+            const text = (el.textContent || '').toLowerCase();
+            if (
+              (style.position === 'fixed' || style.position === 'sticky') &&
+              /cookie|consent|terms|privacy/.test(text)
+            ) {
+              el.remove();
+            }
+          }
+        });
+        console.log('🧽 Removed fixed consent/cookie elements');
+      } catch {}
+      
+      // Look for package selection buttons (more robust set of fallbacks)
+      const candidates = [
+        'Get Started',
+        'Buy Now',
+        'Select Plan',
+        'Select',
+        'Purchase',
+        'Order Now',
+        'Continue'
+      ];
+
+      const indexByPackage = packageType === 'basic' ? 0 : packageType === 'premium' ? 1 : 2;
+
+      let packageButton = null as any;
+
+      // Strategy 0a: explicit Basic anchor from site markup
+      if (packageType === 'basic' && !packageButton) {
+        try {
+          const directBasicAnchor = this.page.locator('a.gtm-press_release_packages_up-basic-pricing, a[href*="plan=presswire-basic"]').first();
+          await directBasicAnchor.waitFor({ timeout: 7000 });
+          packageButton = directBasicAnchor;
+          console.log('🔎 Found Basic plan via explicit anchor selector');
+        } catch {}
+      }
+
+      // Strategy 0b: if explicitly choosing Basic, try to find the Select button within the Basic tile
+      if (packageType === 'basic') {
+        try {
+          const basicTile = this.page.locator('div:has-text("Basic")').first();
+          await basicTile.waitFor({ timeout: 5000 }).catch(() => {});
+          const basicSelect = basicTile.locator('button:has-text("Select")').first();
+          await basicSelect.waitFor({ timeout: 5000 });
+          packageButton = basicSelect;
+          console.log('🔎 Found Basic plan Select button via Basic tile text');
+        } catch {}
+      }
+
+      // Strategy 1: buttons inside the pricing comparison table (column-based)
+      if (!packageButton) {
+        try {
+          const tableButtons = this.page.locator('table a:has-text("Get Started"), table button:has-text("Get Started")');
+          await tableButtons.first().waitFor({ timeout: 10000 });
+          packageButton = tableButtons.nth(indexByPackage);
         await packageButton.waitFor({ timeout: 10000 });
+          console.log('🔎 Found plan button via table column index');
+        } catch {}
+      }
+
+      // Strategy 2: data attributes or explicit package classes
+      const packageSelectors = {
+        basic: '[data-package="basic"], .package-basic button, .plan-basic button',
+        premium: '[data-package="premium"], .package-premium button, .plan-premium button',
+        enterprise: '[data-package="enterprise"], .package-enterprise button, .plan-enterprise button'
+      } as const;
+
+      try {
+        if (!packageButton) {
+          packageButton = this.page.locator(packageSelectors[packageType]).first();
+          await packageButton.waitFor({ timeout: 20000 });
+        }
       } catch {
-        // Fallback: look for any "Buy Now" or "Get Started" buttons
-        packageButton = this.page.locator('button:has-text("Get Started"), button:has-text("Buy Now"), a:has-text("Get Started")').nth(packageType === 'basic' ? 0 : packageType === 'premium' ? 1 : 2);
-        await packageButton.waitFor({ timeout: 10000 });
+        // Strategy 3: buttons or links by text, pick the likely index
+        const textSelector = candidates
+          .map(t => `button:has-text("${t}"), a:has-text("${t}")`)
+          .join(', ');
+        try {
+          packageButton = this.page.locator(textSelector).nth(indexByPackage);
+          await packageButton.waitFor({ timeout: 20000 });
+        } catch {
+          // Strategy 4: any visible candidate text, choose first visible
+          packageButton = this.page.locator(textSelector).first();
+          await packageButton.waitFor({ timeout: 20000 });
+        }
+      }
+
+      // Strategy 5: Last-resort DOM scan for a "Get Started"/"Select" button under a parent containing "Basic"
+      if (!packageButton) {
+        try {
+          const clicked = await this.page.evaluate(() => {
+            const texts = [/get started/i, /select/i, /buy now/i, /continue/i, /order/i];
+            const candidates = Array.from(document.querySelectorAll('a, button'))
+              .filter(el => texts.some(rx => rx.test(el.textContent || '')));
+            function hasAncestorWith(el: HTMLElement, rx: RegExp) {
+              let node = el.parentElement;
+              for (let i = 0; i < 8 && node; i++) {
+                const txt = (node.textContent || '').toLowerCase();
+                if (rx.test(txt)) return true;
+                node = node.parentElement as HTMLElement | null;
+              }
+              return false;
+            }
+            let target = candidates.find(el => hasAncestorWith(el as HTMLElement, /\bbasic\b/i));
+            if (!target) target = candidates[0];
+            if (target) {
+              (target as HTMLElement).scrollIntoView({ block: 'center' });
+              (target as HTMLElement).click();
+              return true;
+            }
+            return false;
+          });
+          if (clicked) {
+            console.log('✅ Clicked plan button via DOM scan');
+          }
+        } catch {}
       }
 
       // Click the package button
-      await packageButton.click();
+      if (packageButton) {
+        await packageButton.scrollIntoViewIfNeeded().catch(() => {});
+        await packageButton.click({ force: true });
+      }
       console.log(`✅ Selected ${packageType} package`);
 
       // Wait for navigation to checkout or registration page
       await this.page.waitForLoadState('networkidle');
+      
+      // Check if we should use credits or require manual payment
+      const useCredits = process.env.EIN_USE_PREPAID_CREDITS === 'true';
+      const alwaysManual = process.env.EIN_USE_PREPAID_CREDITS === 'manual';
+      
+      if (alwaysManual) {
+        console.log('🛑 Manual payment mode: stopping at checkout for admin approval');
+        return {
+          success: false,
+          error: 'Manual payment required',
+          requiresManualPayment: true
+        };
+      }
+      
+      if (useCredits) {
+        console.log('💳 Credit mode: attempting to use prepaid credits');
+        try {
+          // Try to detect and use available credits
+          const creditUsed = await this.attemptCreditPurchase();
+          if (creditUsed) {
+            console.log('✅ Credit applied successfully, proceeding to submission');
+            // Continue to submission form
+          } else {
+            console.log('⚠️ No credits available, falling back to manual payment');
+            return {
+              success: false,
+              error: 'No credits available, manual payment required',
+              requiresManualPayment: true
+            };
+          }
+        } catch (creditError) {
+          console.log('❌ Credit application failed, falling back to manual payment');
+          return {
+            success: false,
+            error: `Credit application failed: ${creditError}`,
+            requiresManualPayment: true
+          };
+        }
+      }
       
       // Handle possible registration/login requirement
       const currentUrl = this.page.url();
@@ -591,6 +759,111 @@ export class EINPresswireAutomation {
     } catch (error) {
       console.log('⚠️ Could not extract submission ID:', error);
       return `SUBMISSION_${Date.now()}`;
+    }
+  }
+
+  /**
+   * Attempt to use prepaid credits for the current package
+   */
+  private async attemptCreditPurchase(): Promise<boolean> {
+    if (!this.page) throw new Error('Page not available');
+    
+    try {
+      // Wait for checkout page to load
+      await this.page.waitForLoadState('networkidle');
+      
+      // Look for credit-related elements
+      const creditSelectors = [
+        'text=Use Credit',
+        'text=Use Credit(s)',
+        'text=Available Credits',
+        'label:has-text("Use Credit") input[type="radio"]',
+        'input[type="radio"][value*="credit"]',
+        'button:has-text("Use Credit")',
+        'input[name*="credit"]',
+        'select[name*="credit"]'
+      ];
+      
+      let creditElement = null;
+      
+      // Try to find a credit option
+      for (const selector of creditSelectors) {
+        try {
+          const el = this.page.locator(selector).first();
+          if (await el.isVisible({ timeout: 3000 }).catch(() => false)) {
+            creditElement = el;
+            console.log(`🔍 Found credit option: ${selector}`);
+            break;
+          }
+        } catch {}
+      }
+      
+      if (!creditElement) {
+        console.log('❌ No credit options found on checkout page');
+        return false;
+      }
+      
+      // Select/click the credit option
+      await creditElement.click({ force: true });
+      console.log('✅ Credit option selected');
+      
+      // Look for confirmation/submit buttons
+      const confirmSelectors = [
+        'button:has-text("Place Order")',
+        'button:has-text("Submit")',
+        'button:has-text("Complete Order")',
+        'button:has-text("Confirm")',
+        'input[type="submit"][value*="Order"]',
+        'input[type="submit"][value*="Submit"]'
+      ];
+      
+      let orderButton = null;
+      
+      // Find and click the order confirmation button
+      for (const selector of confirmSelectors) {
+        try {
+          const btn = this.page.locator(selector).first();
+          if (await btn.isVisible({ timeout: 3000 }).catch(() => false)) {
+            orderButton = btn;
+            console.log(`🔍 Found order button: ${selector}`);
+            break;
+          }
+        } catch {}
+      }
+      
+      if (!orderButton) {
+        console.log('❌ No order confirmation button found');
+        return false;
+      }
+      
+      // Click the order button
+      await orderButton.scrollIntoViewIfNeeded().catch(() => {});
+      await orderButton.click({ force: true });
+      console.log('✅ Order button clicked');
+      
+      // Wait for navigation to complete
+      await this.page.waitForLoadState('networkidle', { timeout: 15000 });
+      
+      // Check if we landed on a submission form or success page
+      const currentUrl = this.page.url();
+      if (currentUrl.includes('/submit') || currentUrl.includes('/dashboard') || currentUrl.includes('success')) {
+        console.log('✅ Credit purchase successful, landed on submission page');
+        return true;
+      }
+      
+      // If we're still on checkout, something went wrong
+      if (currentUrl.includes('/buy') || currentUrl.includes('/checkout')) {
+        console.log('❌ Still on checkout page after credit attempt');
+        return false;
+      }
+      
+      // If we navigated somewhere else, assume success
+      console.log('✅ Credit purchase appears successful, navigated to:', currentUrl);
+      return true;
+      
+    } catch (error) {
+      console.error('❌ Error during credit purchase attempt:', error);
+      return false;
     }
   }
 

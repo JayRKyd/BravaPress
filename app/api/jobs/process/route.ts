@@ -1,264 +1,268 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { JobQueue } from '@/services/job-queue';
-import { EINPresswireAutomation, type PressReleaseSubmission } from '@/services/einpresswire-automation';
-import { PressReleaseJobData, EmailNotificationJobData } from '@/types/jobs';
-import { createDirectClient } from '@/utils/supabase/server';
+import { NextRequest, NextResponse } from 'next/server'
+import { createDirectClient } from '@/utils/supabase/server'
+import { EINPresswireAutomation } from '@/services/einpresswire-automation'
 
-// Job processor that can handle different types of background jobs
 export async function POST(request: NextRequest) {
-  console.log('🔄 Job Processor: Starting job processing cycle');
-  
-  const jobQueue = new JobQueue();
-  const supabase = createDirectClient();
-  
   try {
-    // Get the next job from the queue
-    const job = await jobQueue.getNextJob();
+    const supabase = createDirectClient()
     
-    if (!job) {
-      console.log('ℹ️ No jobs available for processing');
+    // Get the next available job
+    const { data: job, error: jobError } = await supabase
+      .rpc('get_next_job')
+
+    if (jobError || !job || job.length === 0) {
       return NextResponse.json({ 
-        success: true, 
-        message: 'No jobs available',
-        processed: false 
-      });
-    }
-
-    console.log(`🚀 Processing job: ${job.id} (${job.type})`);
-    
-    let result;
-    let success = false;
-    
-    try {
-      // Process job based on type
-      switch (job.type) {
-        case 'press_release_submission':
-          result = await processPressReleaseJob(job.data as PressReleaseJobData, supabase);
-          success = result.success;
-          break;
-          
-        case 'email_notification':
-          result = await processEmailJob(job.data as EmailNotificationJobData);
-          success = result.success;
-          break;
-          
-        case 'cleanup':
-          result = await processCleanupJob();
-          success = result.success;
-          break;
-          
-        default:
-          console.error(`❌ Unknown job type: ${job.type}`);
-          await jobQueue.failJob(job.id, `Unknown job type: ${job.type}`, false);
-          return NextResponse.json({ 
-            success: false, 
-            error: `Unknown job type: ${job.type}` 
-          });
-      }
-      
-      if (success) {
-        await jobQueue.completeJob(job.id, result);
-        console.log(`✅ Job completed successfully: ${job.id}`);
-      } else {
-        await jobQueue.failJob(job.id, result.error || 'Job failed without specific error');
-        console.log(`❌ Job failed: ${job.id} - ${result.error}`);
-      }
-      
-    } catch (processingError) {
-      const errorMessage = processingError instanceof Error ? processingError.message : 'Unknown processing error';
-      console.error(`💥 Job processing error for ${job.id}:`, processingError);
-      
-      await jobQueue.failJob(job.id, errorMessage);
-    }
-
-    return NextResponse.json({
-      success: true,
-      processed: true,
-      job_id: job.id,
-      job_type: job.type,
-      job_success: success,
-      result: success ? result : undefined,
-      error: success ? undefined : result?.error
-    });
-
-  } catch (error) {
-    console.error('💥 Job processor error:', error);
-    return NextResponse.json(
-      { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
-      },
-      { status: 500 }
-    );
-  }
-}
-
-// Process press release submission job
-async function processPressReleaseJob(data: PressReleaseJobData, supabase: any) {
-  console.log(`📤 Processing press release submission: ${data.submission_id}`);
-  
-  try {
-    // Get submission details from database
-    const { data: submission, error: fetchError } = await supabase
-      .from('press_release_submissions')
-      .select('*')
-      .eq('id', data.submission_id)
-      .single();
-
-    if (fetchError || !submission) {
-      throw new Error(`Failed to fetch submission: ${fetchError?.message || 'Not found'}`);
+        message: 'No jobs available' 
+      })
     }
 
-    // Update status to processing
+    const jobData = job[0]
+    console.log(`🔄 Processing job: ${jobData.job_id} (${jobData.job_type})`)
+    console.log(`📊 Raw jobData:`, JSON.stringify(jobData, null, 2))
+
+    // Always fetch submission_id directly from jobs table to avoid RPC issues
+    console.log(`🔍 Fetching job details for job_id: ${jobData.job_id}`)
+    const { data: fullJob, error: jobFetchError } = await supabase
+      .from('jobs')
+      .select('submission_id')
+      .eq('id', jobData.job_id)
+      .single()
+    
+    console.log(`📊 Full job query result:`, JSON.stringify(fullJob, null, 2))
+    console.log(`❌ Job fetch error:`, jobFetchError)
+    
+    if (jobFetchError || !fullJob?.submission_id) {
+      const errorMsg = `Cannot fetch submission_id: ${jobFetchError?.message || 'submission_id is null'}`
+      console.error(`🚨 ${errorMsg}`)
+      await supabase
+        .from('jobs')
+        .update({ status: 'failed', error: errorMsg })
+        .eq('id', jobData.job_id)
+      return NextResponse.json({ 
+        success: false, 
+        error: errorMsg 
+      })
+    }
+    
+    const submissionId = fullJob.submission_id
+    console.log(`✅ Got submission_id: ${submissionId}`)
+
+    // Update job status to processing
     await supabase
-      .from('press_release_submissions')
+      .from('jobs')
       .update({ 
         status: 'processing',
-        processing_logs: [
-          ...(submission.processing_logs || []),
-          {
-            timestamp: new Date().toISOString(),
-            step: 'automation_started',
-            status: 'started',
-            details: { package_type: data.package_type, test_mode: data.test_mode, demo_mode: data.demo_mode }
-          }
-        ]
+        started_at: new Date().toISOString()
       })
-      .eq('id', data.submission_id);
+      .eq('id', jobData.job_id)
 
-    // Initialize automation
-    const automation = new EINPresswireAutomation();
-    
     try {
-      await automation.initialize(true); // Always headless in production
-      
-      const pressReleaseData: PressReleaseSubmission = {
-        title: submission.title,
-        content: submission.content,
-        summary: submission.summary,
-        companyName: submission.company_name,
-        contactName: submission.contact_name,
-        contactEmail: submission.contact_email,
-        contactPhone: submission.contact_phone,
-        websiteUrl: submission.website_url,
-        industry: submission.industry,
-        location: submission.location
-      };
+      if (jobData.job_type === 'press_release_submission') {
+        // Get submission details
+        console.log(`🔍 Fetching submission with ID: ${submissionId}`)
+        const { data: submission, error: subError } = await supabase
+          .from('press_release_submissions')
+          .select('*')
+          .eq('id', submissionId)
+          .single()
 
-      // Production mode - real submission only
-      const purchaseResult = await automation.purchasePackage(data.package_type);
-      if (!purchaseResult.success) {
-        throw new Error(`Purchase failed: ${purchaseResult.error}`);
+        if (subError) {
+          console.error(`❌ Submission fetch error:`, subError)
+          throw new Error(`Failed to fetch submission: ${subError.message}`)
+        }
+
+        if (!submission) {
+          throw new Error(`Submission not found: ${submissionId}`)
+        }
+
+        console.log(`✅ Found submission: ${submission.title}`)
+
+        // Check if this is a manual payment submission that should skip purchase
+        const skipPurchase = (jobData as any).job_data?.skip_purchase === true
+
+        if (skipPurchase) {
+          console.log('💰 Manual payment submission - skipping purchase step')
+          // Update submission status to processing
+          await supabase
+            .from('press_release_submissions')
+            .update({ status: 'processing' })
+            .eq('id', submission.id)
+          
+          // Go straight to submission
+          const automation = new EINPresswireAutomation()
+          await automation.initialize(true) // headless for production
+          
+          try {
+            const submissionResult = await automation.submitPressRelease({
+              title: submission.title,
+              content: submission.content,
+              summary: submission.summary,
+              companyName: submission.company_name,
+              contactName: submission.contact_name,
+              contactEmail: submission.contact_email,
+              contactPhone: submission.contact_phone,
+              websiteUrl: submission.website_url,
+              industry: submission.industry,
+              location: submission.location
+            })
+
+            if (submissionResult.success) {
+              // Update submission as completed
+              await supabase
+                .from('press_release_submissions')
+                .update({ 
+                  status: 'completed',
+                  completed_at: new Date().toISOString()
+                })
+                .eq('id', submission.id)
+
+              // Mark job as completed
+              await supabase
+                .from('jobs')
+                .update({ 
+                  status: 'completed',
+                  completed_at: new Date().toISOString(),
+                  result: submissionResult
+                })
+                .eq('id', jobData.job_id)
+
+              console.log('✅ Manual payment submission completed successfully')
+            } else {
+              throw new Error(submissionResult.error || 'Submission failed')
+            }
+          } finally {
+            await automation.cleanup()
+          }
+        } else {
+          // Regular submission flow with purchase
+          console.log('💳 Regular submission - proceeding with purchase')
+          
+          const automation = new EINPresswireAutomation()
+          await automation.initialize(true) // headless for production
+          
+          try {
+            // Purchase package
+            const purchaseResult = await automation.purchasePackage('basic')
+            
+            if ((purchaseResult as any).requiresManualPayment) {
+              // Update submission status
+              await supabase
+                .from('press_release_submissions')
+                .update({ status: 'payment_required_manual' })
+                .eq('id', submission.id)
+
+              // Mark job as failed with manual payment required
+              await supabase
+                .from('jobs')
+                .update({ 
+                  status: 'failed',
+                  error: purchaseResult.error,
+                  completed_at: new Date().toISOString()
+                })
+                .eq('id', jobData.job_id)
+
+              console.log('🛑 Manual payment required for submission')
+              return NextResponse.json({ 
+                success: false, 
+                status: 'manual_payment_required',
+                submission_id: submission.id
+              })
+            }
+
+            if (!purchaseResult.success) {
+              throw new Error(purchaseResult.error || 'Purchase failed')
+            }
+
+            // Update submission status to processing
+            await supabase
+              .from('press_release_submissions')
+              .update({ status: 'processing' })
+              .eq('id', submission.id)
+
+            // Submit press release
+            const submissionResult = await automation.submitPressRelease({
+              title: submission.title,
+              content: submission.content,
+              summary: submission.summary,
+              companyName: submission.company_name,
+              contactName: submission.contact_name,
+              contactEmail: submission.contact_email,
+              contactPhone: submission.contact_phone,
+              websiteUrl: submission.website_url,
+              industry: submission.industry,
+              location: submission.location
+            })
+
+            if (submissionResult.success) {
+              // Update submission as completed
+              await supabase
+                .from('press_release_submissions')
+                .update({ 
+                  status: 'completed',
+                  completed_at: new Date().toISOString()
+                })
+                .eq('id', submission.id)
+
+              // Mark job as completed
+              await supabase
+                .from('jobs')
+                .update({ 
+                  status: 'completed',
+                  completed_at: new Date().toISOString(),
+                  result: { purchase: purchaseResult, submission: submissionResult }
+                })
+                .eq('id', jobData.job_id)
+
+              console.log('✅ Press release submission completed successfully')
+            } else {
+              throw new Error(submissionResult.error || 'Submission failed')
+            }
+          } finally {
+            await automation.cleanup()
+          }
+        }
       }
 
-      const submissionResult = await automation.submitPressRelease(
-        pressReleaseData, 
-        purchaseResult.accessCredentials
-      );
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Job processed successfully',
+        job_id: jobData.job_id
+      })
+
+    } catch (error) {
+      console.error(`❌ Job processing failed: ${error}`)
       
-      const automationResult = {
-        purchase: purchaseResult,
-        submission: submissionResult
-      };
-
-      // Update submission with results
-      const finalStatus = automationResult.submission.success ? 'completed' : 'failed';
+      // Mark job as failed
       await supabase
-        .from('press_release_submissions')
-        .update({
-          status: finalStatus,
-          einpresswire_order_id: automationResult.purchase.orderId,
-          einpresswire_submission_id: automationResult.submission.submissionId,
-          einpresswire_confirmation_url: automationResult.submission.confirmationUrl,
-          screenshots: automationResult.submission.screenshots,
-          completed_at: new Date().toISOString(),
-          processing_logs: [
-            ...(submission.processing_logs || []),
-            {
-              timestamp: new Date().toISOString(),
-              step: 'automation_completed',
-              status: automationResult.submission.success ? 'completed' : 'failed',
-              details: automationResult
-            }
-          ]
+        .from('jobs')
+        .update({ 
+          status: 'failed',
+          error: error instanceof Error ? error.message : 'Unknown error',
+          completed_at: new Date().toISOString()
         })
-        .eq('id', data.submission_id);
+        .eq('id', jobData.job_id)
 
-      return {
-        success: automationResult.submission.success,
-        result: automationResult,
-        error: automationResult.submission.success ? undefined : automationResult.submission.error
-      };
+      // Update submission status if it exists
+      if ((jobData as any).submission_id || (jobData as any).job_submission_id) {
+        await supabase
+          .from('press_release_submissions')
+          .update({ status: 'failed' })
+          .eq('id', submissionId as string)
+      }
 
-    } finally {
-      await automation.cleanup();
+      return NextResponse.json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        job_id: jobData.job_id
+      })
     }
 
   } catch (error) {
-    // Update submission status to failed
-    await supabase
-      .from('press_release_submissions')
-      .update({
-        status: 'failed',
-        error_logs: {
-          timestamp: new Date().toISOString(),
-          error: error instanceof Error ? error.message : 'Unknown error',
-          stack: error instanceof Error ? error.stack : undefined
-        }
-      })
-      .eq('id', data.submission_id);
-
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    };
-  }
-}
-
-// Process email notification job
-async function processEmailJob(data: EmailNotificationJobData) {
-  console.log(`📧 Processing email job: ${data.template} to ${data.to}`);
-  
-  try {
-    // TODO: Implement email sending with Resend
-    // For now, just simulate success
-    console.log(`📧 Email sent: ${data.template} template to ${data.to}`);
-    
-    return {
-      success: true,
-      result: {
-        to: data.to,
-        template: data.template,
-        sent_at: new Date().toISOString()
-      }
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Email send failed'
-    };
-  }
-}
-
-// Process cleanup job
-async function processCleanupJob() {
-  console.log('🧹 Processing cleanup job');
-  
-  try {
-    const jobQueue = new JobQueue();
-    const deletedCount = await jobQueue.cleanupOldJobs(7); // Clean up jobs older than 7 days
-    
-    return {
-      success: true,
-      result: {
-        deleted_count: deletedCount,
-        cleaned_at: new Date().toISOString()
-      }
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Cleanup failed'
-    };
+    console.error('💥 Job processor error:', error)
+    return NextResponse.json({ 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    }, { status: 500 })
   }
 } 

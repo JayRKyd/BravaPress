@@ -110,18 +110,25 @@ export function PressReleaseForm() {
     }
   }
 
-  const updateScheduledRelease = () => {
-    if (!scheduledDate || !isScheduled) return
+  const updateScheduledRelease = (
+    nextDate?: Date,
+    nextTime?: string,
+    nextTimezone?: string
+  ) => {
+    if (!isScheduled) return
 
-    const [hours, minutes] = scheduledTime.split(":").map(Number)
-    const date = new Date(scheduledDate)
-    date.setHours(hours, minutes)
+    const baseDate = nextDate ?? scheduledDate
+    if (!baseDate) return
+
+    const [hours, minutes] = (nextTime ?? scheduledTime).split(":").map(Number)
+    const computedDate = new Date(baseDate)
+    computedDate.setHours(hours, minutes)
 
     setFormData(prev => ({
       ...prev,
       scheduledRelease: {
-        date: date.toISOString(),
-        timezone
+        date: computedDate.toISOString(),
+        timezone: nextTimezone ?? timezone
       }
     }))
   }
@@ -431,31 +438,97 @@ export function PressReleaseForm() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <Label htmlFor="release-time">Release Time</Label>
-                      <Select defaultValue="immediate">
+                      <Select
+                        value={isScheduled ? 'scheduled' : 'immediate'}
+                        onValueChange={handleSchedulingChange}
+                      >
                         <SelectTrigger id="release-time">
                           <SelectValue placeholder="Select release time" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="immediate">Immediate Release</SelectItem>
-                          <SelectItem value="scheduled">Scheduled Release</SelectItem>
+                           <SelectItem value="scheduled">Schedule Release</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="timezone">Timezone</Label>
-                      <Select defaultValue="est">
-                        <SelectTrigger id="timezone">
-                          <SelectValue placeholder="Select timezone" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="est">Eastern Time (ET)</SelectItem>
-                          <SelectItem value="cst">Central Time (CT)</SelectItem>
-                          <SelectItem value="mst">Mountain Time (MT)</SelectItem>
-                          <SelectItem value="pst">Pacific Time (PT)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                     {isScheduled && (
+                       <div className="space-y-2">
+                         <Label htmlFor="timezone">Timezone</Label>
+                         <Select
+                           value={timezone}
+                           onValueChange={(value) => {
+                             setTimezone(value)
+                             updateScheduledRelease(undefined, undefined, value)
+                           }}
+                         >
+                           <SelectTrigger id="timezone">
+                             <SelectValue placeholder="Select timezone" />
+                           </SelectTrigger>
+                           <SelectContent>
+                             <SelectItem value="America/New_York">Eastern Time (ET)</SelectItem>
+                             <SelectItem value="America/Chicago">Central Time (CT)</SelectItem>
+                             <SelectItem value="America/Denver">Mountain Time (MT)</SelectItem>
+                             <SelectItem value="America/Los_Angeles">Pacific Time (PT)</SelectItem>
+                             <SelectItem value="UTC">UTC</SelectItem>
+                           </SelectContent>
+                         </Select>
+                       </div>
+                     )}
                   </div>
+
+                  {isScheduled && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="space-y-2">
+                        <Label>Schedule Date</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                'w-full justify-start text-left font-normal',
+                                !scheduledDate && 'text-muted-foreground'
+                              )}
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {scheduledDate ? format(scheduledDate, 'PPP') : 'Pick a date'}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={scheduledDate}
+                              onSelect={(date) => {
+                                setScheduledDate(date)
+                                if (date) updateScheduledRelease(date)
+                              }}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="scheduled-time">Schedule Time</Label>
+                        <Input
+                          id="scheduled-time"
+                          type="time"
+                          value={scheduledTime}
+                          onChange={(e) => {
+                            const value = e.target.value
+                            setScheduledTime(value)
+                            updateScheduledRelease(undefined, value)
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Planned release</Label>
+                        <div className="h-10 rounded-md border bg-muted/50 flex items-center px-3 text-sm text-muted-foreground">
+                          {formData.scheduledRelease?.date
+                            ? `${format(new Date(formData.scheduledRelease.date), 'PPpp')} (${formData.scheduledRelease.timezone})`
+                            : 'Pick a date and time'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <Separator />
