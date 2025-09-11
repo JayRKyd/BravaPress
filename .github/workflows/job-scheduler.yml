@@ -1,0 +1,17 @@
+name: Job Scheduler
+
+on:
+  schedule:
+    # Run every minute
+    - cron: '* * * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  process-jobs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Process Jobs
+        run: |
+          curl -X POST "${{ secrets.JOB_PROCESS_URL }}" \
+            -H "Content-Type: application/json" \
+            -w "Status: %{http_code}\n"
