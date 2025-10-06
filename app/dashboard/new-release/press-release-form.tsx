@@ -139,56 +139,54 @@ export function PressReleaseForm() {
     alert('Button click detected! Check console for more details.');
   }
   
-  // Simulate payment process and trigger content generation
+  // Create Stripe Checkout Session and redirect to Stripe
   const handlePayment = async () => {
-    console.log('🚀 [DEBUG] handlePayment function called!'); // Debug log
-    console.log('🚀 [DEBUG] Current state:', { isSubmitting, currentStep, formData }); // Debug state
-    
     try {
       setIsSubmitting(true)
-      setSubmissionProgress("Processing payment...")
-      
-      console.log('🚀 [DEBUG] Set isSubmitting to true, starting timeout...'); // Debug log
-      
-      // Simulate payment processing
-      setTimeout(async () => {
-        console.log('🚀 [DEBUG] Payment timeout completed, processing...'); // Debug log
-        
-        try {
-          setPaymentComplete(true)
-          setSubmissionProgress("Generating your press release...")
-          
-          console.log('🚀 [DEBUG] About to call handleGenerate...'); // Debug log
-          
-          // Generate content after payment
-          await handleGenerate()
-          
-          console.log('🚀 [DEBUG] handleGenerate completed successfully'); // Debug log
-          
-          setIsSubmitting(false)
-          toast({
-            title: "Payment Successful",
-            description: "Your payment has been processed and content generated successfully.",
-          })
-        } catch (error) {
-          console.error('🚀 [DEBUG] Error in handleGenerate:', error); // Debug log
-          setIsSubmitting(false)
-          setSubmissionProgress(null) // Clear progress on error
-          toast({
-            title: "Generation Failed",
-            description: "Payment processed but content generation failed. Please try again.",
-            variant: "destructive"
-          })
-        }
-      }, 2000)
-      
+      setSubmissionProgress("Redirecting to Stripe...")
+
+      const press_release_data = {
+        title: generatedContent.title || '',
+        content: generatedContent.fullContent || '',
+        summary: generatedContent.summary || '',
+        company_name: formData.companyName,
+        contact_name: formData.contactName,
+        contact_email: formData.contactEmail,
+        contact_phone: formData.contactPhone,
+        website_url: formData.websiteUrl,
+        industry: formData.industry,
+        location: formData.location
+      }
+
+      const response = await fetch('/api/payments/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: 39500,
+          package_type: 'basic',
+          press_release_data
+        })
+      })
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        throw new Error(err.error || 'Failed to create checkout session')
+      }
+
+      const data = await response.json()
+      if (data.url) {
+        window.location.href = data.url
+        return
+      }
+
+      throw new Error('Missing checkout URL')
     } catch (error) {
-      console.error('🚀 [DEBUG] Error in handlePayment:', error); // Debug log
+      console.error('Error starting checkout:', error)
       setIsSubmitting(false)
       setSubmissionProgress(null)
       toast({
         title: "Payment Failed",
-        description: "Failed to process payment. Please try again.",
+        description: "We couldn't start the payment. Please try again.",
         variant: "destructive"
       })
     }
@@ -667,11 +665,7 @@ export function PressReleaseForm() {
                 Back
               </Button>
               <Button 
-                onClick={(e) => {
-                  console.log('🚀 [DEBUG] Button clicked event:', e);
-                  testClickHandler(); // Test handler
-                  handlePayment(); // Original handler
-                }} 
+                onClick={() => handlePayment()} 
                 disabled={isSubmitting}
                 type="button"
               >

@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createDirectClient } from '@/utils/supabase/server';
 import { headers } from 'next/headers';
+import Stripe from 'stripe';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2025-06-30.basil',
+});
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,15 +16,17 @@ export async function POST(request: NextRequest) {
     const headersList = await headers();
     const signature = headersList.get('stripe-signature');
 
-    // TODO: Add Stripe webhook signature verification
-    // For now, we'll parse the body as JSON for mock processing
-    let event;
+    let event: Stripe.Event;
     try {
-      event = JSON.parse(body);
+      event = stripe.webhooks.constructEvent(
+        body,
+        signature as string,
+        process.env.STRIPE_WEBHOOK_SECRET as string
+      );
     } catch (err) {
-      console.error('Invalid JSON in webhook body:', err);
+      console.error('Webhook signature verification failed:', err);
       return NextResponse.json(
-        { error: 'Invalid JSON' },
+        { error: 'Invalid signature' },
         { status: 400 }
       );
     }
@@ -28,6 +35,16 @@ export async function POST(request: NextRequest) {
 
     // Handle different webhook event types
     switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session
+        const paymentIntentId = session.payment_intent as string | null
+        const submissionId = (session.client_reference_id as string) || (session.metadata?.submission_id as string)
+        await handleCheckoutCompleted(supabase, {
+          paymentIntentId: paymentIntentId || undefined,
+          submissionId
+        })
+        break
+      }
       case 'payment_intent.succeeded':
         await handlePaymentSucceeded(supabase, event.data.object);
         break;
@@ -38,11 +55,6 @@ export async function POST(request: NextRequest) {
       
       case 'payment_intent.canceled':
         await handlePaymentCanceled(supabase, event.data.object);
-        break;
-      
-      // Mock event type for testing
-      case 'mock.payment_succeeded':
-        await handlePaymentSucceeded(supabase, event.data.object);
         break;
       
       default:
@@ -167,27 +179,21 @@ async function handlePaymentCanceled(supabase: any, paymentIntent: any) {
   }
 }
 
-// TODO: When integrating with Stripe, add this webhook verification:
-/*
-import Stripe from 'stripe';
+async function handleCheckoutCompleted(supabase: any, params: { paymentIntentId?: string, submissionId?: string }) {
+  try {
+    if (params.paymentIntentId) {
+      // Ensure we store the payment intent ID if not already set
+      await supabase
+        .from('press_release_submissions')
+        .update({ stripe_payment_intent_id: params.paymentIntentId })
+        .eq('id', params.submissionId)
+    }
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16',
-});
-
-// Replace mock event parsing with real Stripe webhook verification:
-let event;
-try {
-  event = stripe.webhooks.constructEvent(
-    body,
-    signature!,
-    process.env.STRIPE_WEBHOOK_SECRET!
-  );
-} catch (err) {
-  console.error('Webhook signature verification failed:', err);
-  return NextResponse.json(
-    { error: 'Invalid signature' },
-    { status: 400 }
-  );
+    if (params.paymentIntentId) {
+      // Reuse succeeded handler for consistent logic
+      await handlePaymentSucceeded(supabase, { id: params.paymentIntentId })
+    }
+  } catch (error) {
+    console.error('Error handling checkout.session.completed:', error)
+  }
 }
-*/ 
