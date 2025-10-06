@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -264,6 +264,42 @@ export function PressReleaseForm() {
       setSubmissionProgress(null)
     }
   }
+
+  // Detect Stripe return (success or cancel) and advance flow
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search)
+      const sessionId = params.get('session_id')
+      const canceled = params.get('canceled')
+
+      if (sessionId) {
+        setPaymentComplete(true)
+        setSubmissionProgress(null)
+        setCurrentStep(2) // Move to Preview & Edit after payment success
+        toast({
+          title: "Payment successful",
+          description: "You can now preview and finalize your press release.",
+        })
+      }
+
+      if (canceled) {
+        toast({
+          title: "Payment canceled",
+          description: "You can try again whenever you're ready.",
+          variant: "destructive"
+        })
+      }
+
+      if (sessionId || canceled) {
+        const url = new URL(window.location.href)
+        url.searchParams.delete('session_id')
+        url.searchParams.delete('canceled')
+        window.history.replaceState({}, '', url.toString())
+      }
+    } catch (err) {
+      // no-op: safest fallback is to do nothing
+    }
+  }, [])
 
   // Submit press release for distribution using browser automation
   const handleSubmit = async () => {
