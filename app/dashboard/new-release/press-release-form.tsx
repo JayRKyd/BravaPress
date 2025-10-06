@@ -154,6 +154,11 @@ export function PressReleaseForm() {
         location: formData.location
       }
 
+      // Persist form data so we can restore and auto-generate after Stripe returns
+      try {
+        localStorage.setItem('bp_new_release_form', JSON.stringify(formData))
+      } catch {}
+
       const response = await fetch('/api/payments/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -275,11 +280,43 @@ export function PressReleaseForm() {
       if (sessionId) {
         setPaymentComplete(true)
         setSubmissionProgress(null)
-        setCurrentStep(2) // Move to Preview & Edit after payment success
-        toast({
-          title: "Payment successful",
-          description: "You can now preview and finalize your press release.",
-        })
+
+        // Try to restore form data and auto-generate content
+        let restored = null as null | typeof formData
+        try {
+          const raw = localStorage.getItem('bp_new_release_form')
+          restored = raw ? JSON.parse(raw) : null
+        } catch {}
+
+        if (restored && restored.companyName && restored.companyDescription && restored.eventDescription) {
+          setFormData(restored)
+          ;(async () => {
+            try {
+              setIsGenerating(true)
+              const content = await generatePressReleaseContent(restored!)
+              setGeneratedContent(content)
+              setCurrentStep(2)
+              toast({
+                title: "Payment successful",
+                description: "AI content generated. Review and edit before submission.",
+              })
+            } catch (err) {
+              setCurrentStep(2)
+              toast({
+                title: "Payment successful",
+                description: "Could not auto-generate content. You can generate it now.",
+              })
+            } finally {
+              setIsGenerating(false)
+            }
+          })()
+        } else {
+          setCurrentStep(2)
+          toast({
+            title: "Payment successful",
+            description: "You can now preview and generate your press release.",
+          })
+        }
       }
 
       if (canceled) {
@@ -295,6 +332,7 @@ export function PressReleaseForm() {
         url.searchParams.delete('session_id')
         url.searchParams.delete('canceled')
         window.history.replaceState({}, '', url.toString())
+        try { localStorage.removeItem('bp_new_release_form') } catch {}
       }
     } catch (err) {
       // no-op: safest fallback is to do nothing
