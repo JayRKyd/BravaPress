@@ -133,11 +133,7 @@ export function PressReleaseForm() {
     }))
   }
   
-  // Test click handler for debugging
-  const testClickHandler = () => {
-    console.log('🧪 [TEST] Button clicked! This proves click events are working.');
-    alert('Button click detected! Check console for more details.');
-  }
+  // Removed test click handler and debug UI now that Stripe checkout is live
   
   // Create Stripe Checkout Session and redirect to Stripe
   const handlePayment = async () => {
@@ -579,23 +575,6 @@ export function PressReleaseForm() {
         </TabsContent>
             
         <TabsContent value="payment" className="space-y-6">
-          {/* Debug Information */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
-            <h4 className="font-medium text-blue-900 mb-2">🐛 Debug Info:</h4>
-            <div className="space-y-1 text-blue-700">
-              <p>Current Step: {currentStep}</p>
-              <p>Is Submitting: {isSubmitting.toString()}</p>
-              <p>Form Valid: {(formData.companyName && formData.companyDescription && formData.eventDescription && formData.contactName && formData.contactEmail).toString()}</p>
-              <p>Submission Progress: {submissionProgress || 'null'}</p>
-            </div>
-            <div className="mt-3 p-2 bg-blue-100 rounded text-blue-800">
-              <p className="font-medium">🧪 Testing Instructions:</p>
-              <p>1. Open browser console (F12)</p>
-              <p>2. Click the "Pay $395 and Generate" button</p>
-              <p>3. Check console for debug logs and alert popup</p>
-            </div>
-          </div>
-          
           <Card>
             <CardHeader>
               <CardTitle>Payment Details</CardTitle>
