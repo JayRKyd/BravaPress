@@ -289,19 +289,19 @@ export function PressReleaseForm() {
         } catch {}
 
         if (restored && restored.companyName && restored.companyDescription && restored.eventDescription) {
+          // Immediately switch to preview step and show generating spinner
+          setCurrentStep(2)
+          setIsGenerating(true)
           setFormData(restored)
           ;(async () => {
             try {
-              setIsGenerating(true)
               const content = await generatePressReleaseContent(restored!)
               setGeneratedContent(content)
-              setCurrentStep(2)
               toast({
                 title: "Payment successful",
                 description: "AI content generated. Review and edit before submission.",
               })
             } catch (err) {
-              setCurrentStep(2)
               toast({
                 title: "Payment successful",
                 description: "Could not auto-generate content. You can generate it now.",
