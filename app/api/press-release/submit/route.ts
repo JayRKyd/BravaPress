@@ -27,8 +27,10 @@ export async function POST(request: NextRequest) {
     const automation = new EINPresswireAutomation();
     
     try {
-      // Initialize browser (non-headless for debugging)
-      await automation.initialize(false);
+      // Initialize browser
+      // Default to headless in server environments. Set PLAYWRIGHT_HEADLESS=false to debug locally.
+      const headless = process.env.PLAYWRIGHT_HEADLESS !== 'false';
+      await automation.initialize(headless);
       console.log('✅ Browser initialized');
 
       // Step 1: Purchase package
