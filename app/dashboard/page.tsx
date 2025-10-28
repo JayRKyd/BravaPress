@@ -43,10 +43,10 @@ export default function DashboardPage() {
         
         const userId = session.user.id
         
-        // Fetch press releases for the authenticated user
+        // Fetch submissions for the authenticated user
         const { data: pressReleasesData, error: pressReleasesError } = await supabase
-          .from('press_releases')
-          .select('*')
+          .from('press_release_submissions')
+          .select('id,title,summary,status,created_at,completed_at')
           .eq('user_id', userId)
           .order('created_at', { ascending: false })
         
@@ -83,11 +83,11 @@ export default function DashboardPage() {
     
     // Set up real-time subscription for press releases
     const pressReleasesSubscription = supabase
-      .channel('press_releases_changes')
+      .channel('press_release_submissions_changes')
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
-        table: 'press_releases'
+        table: 'press_release_submissions'
       }, (payload) => {
         console.log('Press release change:', payload)
         fetchDashboardData()
@@ -198,18 +198,26 @@ export default function DashboardPage() {
                         <h3 className="font-medium">{release.title}</h3>
                         <div
                           className={`text-xs px-2 py-1 rounded-full ${
-                            release.status === "Published"
-                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
-                              : release.status === "Draft"
-                                ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300"
-                                : "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300"
+                            release.status === 'completed'
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                              : release.status === 'failed'
+                                ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
+                                : release.status === 'processing'
+                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
+                                  : release.status === 'paid'
+                                    ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300'
+                                    : release.status === 'payment_pending'
+                                      ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
+                                      : 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300'
                           }`}
                         >
-                          {release.status}
+                          {release.status.replace('_', ' ')}
                         </div>
                       </div>
-                      <p className="text-sm text-muted-foreground">{release.date}</p>
-                      <p className="text-sm line-clamp-2 mt-2">{release.summary}</p>
+                      <p className="text-sm text-muted-foreground">{new Date(release.created_at).toLocaleDateString()}</p>
+                      {release.summary && (
+                        <p className="text-sm line-clamp-2 mt-2">{release.summary}</p>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 self-end sm:self-center">
                       <Link href={`/dashboard/press-release/${release.id}`}>

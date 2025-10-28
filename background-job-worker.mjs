@@ -11,10 +11,13 @@ async function processJob() {
   try {
     const res = await fetch(API_URL, { method: 'POST' });
     const data = await res.json();
-    if (data.processed) {
-      console.log(`[${new Date().toISOString()}] ✅ Job processed:`, data.job_id, data.job_type, data.job_success ? 'SUCCESS' : 'FAIL', data.error || '');
-    } else {
+    // Align logging with /api/jobs/process response shape
+    if (res.ok && data && data.success) {
+      console.log(`[${new Date().toISOString()}] ✅ Job processed:`, data.job_id);
+    } else if (res.ok && data && data.message === 'No jobs available') {
       console.log(`[${new Date().toISOString()}] ℹ️ No jobs to process.`);
+    } else {
+      console.log(`[${new Date().toISOString()}] ⚠️ Job processor responded:`, data);
     }
   } catch (err) {
     console.error(`[${new Date().toISOString()}] ❌ Error processing job:`, err.message);

@@ -6,18 +6,15 @@ import { Card } from "@/components/ui/card"
 import { ArrowLeft, FileText, Calendar, DollarSign, ExternalLink, RefreshCw } from "lucide-react"
 import Link from "next/link"
 
-// Mock payment data - replace with real Stripe data later
-const mockPayments: Payment[] = []
-
 type PaymentStatus = "completed" | "pending" | "failed"
 
 interface Payment {
   id: string
   date: string
-  amount: number
+  amountFormatted: string
   status: PaymentStatus
   pressReleaseTitle: string
-  invoiceUrl: string
+  invoiceUrl?: string
 }
 
 export default function PaymentHistoryPage() {
@@ -26,17 +23,32 @@ export default function PaymentHistoryPage() {
   const [error, setError] = useState(false)
 
   useEffect(() => {
-    // Simulate loading payment data
     const loadPayments = async () => {
       try {
         setLoading(true)
-        // Simulate API call delay
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        
-        // For now, use mock data
-        // TODO: Replace with actual Stripe API call
-        setPayments(mockPayments)
         setError(false)
+        const res = await fetch(`/api/payments/history?limit=20`, { cache: 'no-store' })
+        if (!res.ok) throw new Error('Failed to fetch payments')
+        const json = await res.json()
+        const paymentsData: Payment[] = (json.transactions || []).map((t: any) => {
+          // status mapping from API ('Paid'|'Failed'|'Refunded'|'Pending') to local
+          const statusMap: Record<string, PaymentStatus> = {
+            Paid: 'completed',
+            Refunded: 'completed',
+            Failed: 'failed',
+            Pending: 'pending'
+          }
+          const title = (t.description || '').replace(/^Press Release:\s*/i, '') || 'Press Release'
+          return {
+            id: t.id,
+            date: t.date,
+            amountFormatted: t.amount || '$0.00',
+            status: statusMap[t.status] || 'pending',
+            pressReleaseTitle: title,
+            invoiceUrl: t.stripe_hosted_invoice_url
+          }
+        })
+        setPayments(paymentsData)
       } catch (err) {
         setError(true)
       } finally {
@@ -156,13 +168,13 @@ export default function PaymentHistoryPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <DollarSign className="w-4 h-4" />
-                    ${payment.amount}
+                    {payment.amountFormatted}
                   </div>
                 </div>
               </div>
 
               <Button variant="outline" size="sm" asChild>
-                <Link href={payment.invoiceUrl} target="_blank">
+                <Link href={payment.invoiceUrl || '#'} target="_blank">
                   <ExternalLink className="w-4 h-4 mr-2" />
                   View Invoice
                 </Link>
