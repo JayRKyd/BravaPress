@@ -706,23 +706,41 @@ export class EINPresswireAutomation {
 
       await this.fillEINEditStepOne(submission);
 
-      // 2) Click Continue to Step 2 (Preview)
+      // 2) Click Continue to Step 2 (Preview) - with URL validation
       try {
+        const step1Url = this.page.url();
+        console.log('📍 Step 1 URL before clicking Continue:', step1Url);
+        
         const continueBtn = this.page.locator('button[name="preview"], button:has-text("Continue to Step 2"), button:has-text("Preview")').first();
         await continueBtn.waitFor({ timeout: 10000 });
         await continueBtn.scrollIntoViewIfNeeded().catch(() => {});
+        
+        // Click and wait for REAL navigation (URL must change)
         await continueBtn.click({ force: true });
-        await this.page.waitForLoadState('networkidle');
-        console.log('➡️ Advanced to Step 2 (Preview)');
-      } catch (e) {
-        // Check for form errors
-        try {
-          const hasErrors = await this.page.locator('#flash_error').isVisible({ timeout: 2000 }).catch(() => false);
+        
+        // Wait for URL to change OR for preview page indicators
+        await Promise.race([
+          this.page.waitForURL(url => url.toString() !== step1Url, { timeout: 15000 }),
+          this.page.waitForSelector('a[href*="edit-location"], button:has-text("Continue to Step 3")', { timeout: 15000 })
+        ]);
+        
+        const step2Url = this.page.url();
+        console.log('📍 Step 2 URL after navigation:', step2Url);
+        
+        if (step2Url === step1Url || step2Url.includes('?re=1')) {
+          console.log('⚠️ Still on Step 1 URL - checking for validation errors');
+          // Check for form errors
+          const hasErrors = await this.page.locator('#flash_error, .error, .validation-error').isVisible({ timeout: 2000 }).catch(() => false);
           if (hasErrors) {
-            const errText = await this.page.locator('#flash_error').innerText().catch(() => 'Unknown validation error');
+            const errText = await this.page.locator('#flash_error, .error, .validation-error').first().innerText().catch(() => 'Unknown validation error');
             throw new Error(`EIN validation errors: ${errText}`);
           }
-        } catch {}
+          throw new Error('Form did not advance to Step 2 - possible validation failure');
+        }
+        
+        console.log('➡️ Successfully advanced to Step 2 (Preview)');
+      } catch (e) {
+        console.error('❌ Failed to advance to Step 2:', e);
         throw e;
       }
 
@@ -945,69 +963,111 @@ export class EINPresswireAutomation {
   private async fillEINEditStepOne(submission: PressReleaseSubmission): Promise<void> {
     if (!this.page) throw new Error('Page not available');
 
-    // Helper: fill with real typing + event simulation for JS validation
-    const tryFill = async (selector: string, value?: string) => {
+    // 1. DISABLE AUTOSAVE FIRST - prevents conflicts with our fills
+    await this.page.evaluate(() => {
+      // Clear any autosave intervals
+      const win = window as any;
+      if (win.__autosaveIntervals) {
+        win.__autosaveIntervals.forEach((id: number) => clearInterval(id));
+      }
+      // Remove autosave class from all fields
+      document.querySelectorAll('.autosave').forEach(el => {
+        el.classList.remove('autosave');
+      });
+    });
+    console.log('🛑 Autosave disabled');
+
+    // 2. Helper: fill with retry logic for fields that may clear
+    const fillWithRetry = async (selector: string, value: string, maxAttempts = 3) => {
       if (!value) {
         console.log(`⏭️ Skipped ${selector} (empty value)`);
         return;
       }
-      try {
-        const loc = this.page!.locator(selector).first();
-        const count = await loc.count();
-        if (count === 0) {
-          console.log(`⚠️ Selector not found: ${selector}`);
-          return;
+      
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          const field = this.page!.locator(selector).first();
+          await field.waitFor({ state: 'visible', timeout: 5000 });
+          
+          // Clear using evaluate to avoid autosave interference
+          await field.evaluate(el => (el as HTMLInputElement).value = '');
+          
+          // Type with delay to trigger validation
+          await field.type(value, { delay: 50 });
+          
+          // Trigger events
+          await field.dispatchEvent('input');
+          await field.dispatchEvent('change');
+          await field.blur();
+          
+          // Wait for field to settle
+          await this.page!.waitForTimeout(300);
+          
+          // Verify it stuck
+          const actualValue = await field.inputValue();
+          
+          if (actualValue === value || (actualValue.length > 0 && value.includes(actualValue.substring(0, 20)))) {
+            console.log(`✅ ${selector} filled successfully (${actualValue.length} chars)`);
+            return;
+          } else {
+            console.log(`⚠️ Attempt ${attempt}/${maxAttempts}: ${selector} = "${actualValue.substring(0, 50)}..."`);
+            if (attempt < maxAttempts) {
+              await this.page!.waitForTimeout(500);
+            }
+          }
+        } catch (e) {
+          console.log(`❌ Attempt ${attempt}/${maxAttempts} failed for ${selector}:`, e);
+          if (attempt === maxAttempts) throw e;
         }
-        
-        // Wait for field to be ready
-        await loc.waitFor({ state: 'visible', timeout: 5000 });
-        await this.page!.waitForTimeout(200); // Let JS initialize
-        
-        // Clear then type (simulates real user interaction)
-        await loc.clear();
-        await loc.type(value, { delay: 10 }); // Type with slight delay between keys
-        
-        // Trigger JS events that EINPresswire expects
-        await loc.dispatchEvent('input');
-        await loc.dispatchEvent('change');
-        await loc.blur(); // Trigger blur validation
-        
-        // Verify value stuck
-        const actualValue = await loc.inputValue();
-        if (actualValue === value) {
-          console.log(`✅ Filled ${selector} (verified: ${value.length} chars)`);
-        } else {
-          console.log(`⚠️ Field ${selector} mismatch: got "${actualValue}" vs expected "${value}"`);
-        }
-      } catch (e) {
-        console.log(`❌ Failed to fill ${selector}:`, e);
       }
+      
+      throw new Error(`Failed to fill ${selector} after ${maxAttempts} attempts`);
     };
 
-    // Helper: select by label or value with event triggering
+    // Helper: fill large textarea (special handling)
+    const fillLargeTextarea = async (selector: string, content: string) => {
+      await this.page!.evaluate(({ sel, val }) => {
+        const el = document.querySelector(sel) as HTMLTextAreaElement;
+        if (el) {
+          el.value = val;
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }, { sel: selector, val: content });
+      
+      await this.page!.waitForTimeout(500);
+      
+      const actualLength = await this.page!.locator(selector).evaluate(
+        (el: any) => el.value.length
+      );
+      console.log(`✅ Textarea ${selector} filled: ${actualLength} chars`);
+    };
+
+    // Helper: select with events
     const trySelect = async (selector: string, opts: { label?: string; value?: string }) => {
       try {
         const loc = this.page!.locator(selector).first();
         await loc.waitFor({ state: 'visible', timeout: 5000 });
-        await this.page!.waitForTimeout(100);
         
         const selected = await loc.selectOption(opts as any);
-        
-        // Trigger change event for JS validation
         await loc.dispatchEvent('change');
         await loc.blur();
         
         console.log(`✅ Selected ${JSON.stringify(opts)} on ${selector} -> ${selected}`);
       } catch (e) {
-        console.log(`❌ Failed select on ${selector} with ${JSON.stringify(opts)}:`, e);
+        console.log(`❌ Failed select on ${selector}:`, e);
       }
     };
 
-    // Title, summary, body
-    await tryFill('#title', submission.title);
-    const shortSummary = submission.summary ? submission.summary.slice(0, 160) : undefined;
-    await tryFill('#subtitle', shortSummary);
-    await tryFill('#text', submission.content);
+    // 3. Fill fields in order (some may depend on others)
+    await fillWithRetry('#title', submission.title);
+    const shortSummary = submission.summary ? submission.summary.slice(0, 160) : '';
+    if (shortSummary) {
+      await fillWithRetry('#subtitle', shortSummary);
+    }
+    
+    // Large textarea gets special handling
+    await fillLargeTextarea('#text', submission.content);
 
     // Location parsing: "City, State, Country" | "City, Country" | single token
     let city: string | undefined;
@@ -1027,77 +1087,75 @@ export class EINPresswireAutomation {
       }
     }
 
-    await tryFill('#location_city', city || submission.location);
-    await tryFill('#location_state', state);
+    await fillWithRetry('#location_city', city || submission.location);
+    if (state) {
+      await fillWithRetry('#location_state', state);
+    }
+    
+    // Country select
     if (countryGuess) {
       await trySelect('#location_country_select', { label: countryGuess });
-    }
-    // Fallback country to United States if required select is empty
-    try {
-      const val = await this.page.locator('#location_country_select').inputValue().catch(() => '');
-      if (!val) {
-        await trySelect('#location_country_select', { label: 'United States' });
-      }
-    } catch {}
-
-    // Language (default to English)
-    try {
-      await trySelect('#language', { value: 'en' });
-    } catch {}
-
-    // Release timing: immediate or scheduled
-    if (submission.scheduledDate) {
-      try {
-        await this.page.check('#release_date_active_yes');
-        const date = submission.scheduledDate;
-        const mm = String(date.getMonth() + 1).padStart(2, '0');
-        const dd = String(date.getDate()).padStart(2, '0');
-        const yyyy = String(date.getFullYear());
-        const hh = String(date.getHours()).padStart(2, '0');
-        const min = String(date.getMinutes()).padStart(2, '0');
-        await tryFill('#release_date', `${mm}/${dd}/${yyyy}`);
-        await tryFill('#release_time', `${hh}:${min}`);
-        // Default timezone to Eastern if not specified via UI (selector exists on page)
-        await trySelect('#release_time_zone', { value: 'America/New_York' });
-      } catch {}
     } else {
-      try {
-        await this.page.check('#release_date_active_no');
-      } catch {}
+      await trySelect('#location_country_select', { label: 'United States' });
     }
 
-    // Contact
-    await tryFill('#contact_name', submission.contactName);
-    await tryFill('#contact_organization', submission.companyName);
-    await tryFill('#contact_phone', submission.contactPhone);
-    await tryFill('#contact_email', submission.contactEmail);
+    // Language
+    await trySelect('#language', { value: 'en' });
 
-    // Verify filled values (log)
-    try {
-      const filled = await this.page.evaluate(() => ({
-        title: (document.querySelector('#title') as HTMLInputElement)?.value || '',
-        subtitle: (document.querySelector('#subtitle') as HTMLTextAreaElement)?.value || '',
-        textLen: (document.querySelector('#text') as HTMLTextAreaElement)?.value.length || 0,
-        city: (document.querySelector('#location_city') as HTMLInputElement)?.value || '',
-        country: (document.querySelector('#location_country_select') as HTMLSelectElement)?.value || '',
-        contact_name: (document.querySelector('#contact_name') as HTMLInputElement)?.value || '',
-        contact_org: (document.querySelector('#contact_organization') as HTMLInputElement)?.value || '',
-        contact_email: (document.querySelector('#contact_email') as HTMLInputElement)?.value || ''
-      }));
-      console.log('🧪 Step 1 filled snapshot:', filled);
-      const missing: string[] = [];
-      if (!filled.title) missing.push('title');
-      if (!filled.textLen) missing.push('text');
-      if (!filled.contact_name) missing.push('contact_name');
-      if (!filled.contact_email) missing.push('contact_email');
-      if (!filled.city) missing.push('location_city');
-      if (!filled.country) missing.push('location_country_select');
-      if (missing.length) {
-        console.log('⚠️ Step 1 missing after fill:', missing);
-      } else {
-        console.log('✅ Step 1 required fields present');
-      }
-    } catch {}
+    // Release timing
+    if (submission.scheduledDate) {
+      await this.page.check('#release_date_active_yes');
+      const date = submission.scheduledDate;
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const dd = String(date.getDate()).padStart(2, '0');
+      const yyyy = String(date.getFullYear());
+      const hh = String(date.getHours()).padStart(2, '0');
+      const min = String(date.getMinutes()).padStart(2, '0');
+      await fillWithRetry('#release_date', `${mm}/${dd}/${yyyy}`);
+      await fillWithRetry('#release_time', `${hh}:${min}`);
+      await trySelect('#release_time_zone', { value: 'America/New_York' });
+    } else {
+      await this.page.check('#release_date_active_no');
+    }
+
+    // Contact information
+    await fillWithRetry('#contact_name', submission.contactName);
+    await fillWithRetry('#contact_organization', submission.companyName);
+    if (submission.contactPhone) {
+      await fillWithRetry('#contact_phone', submission.contactPhone);
+    }
+    await fillWithRetry('#contact_email', submission.contactEmail);
+
+    // 4. FINAL VERIFICATION after all fills
+    await this.page.waitForTimeout(1000);
+    const snapshot = await this.page.evaluate(() => ({
+      title: (document.querySelector('#title') as HTMLInputElement)?.value || '',
+      subtitle: (document.querySelector('#subtitle') as HTMLTextAreaElement)?.value || '',
+      textLen: (document.querySelector('#text') as HTMLTextAreaElement)?.value.length || 0,
+      city: (document.querySelector('#location_city') as HTMLInputElement)?.value || '',
+      country: (document.querySelector('#location_country_select') as HTMLSelectElement)?.value || '',
+      contact_name: (document.querySelector('#contact_name') as HTMLInputElement)?.value || '',
+      contact_org: (document.querySelector('#contact_organization') as HTMLInputElement)?.value || '',
+      contact_email: (document.querySelector('#contact_email') as HTMLInputElement)?.value || ''
+    }));
+    
+    console.log('🧪 Final Step 1 verification:', snapshot);
+    
+    // Check required fields
+    const missing: string[] = [];
+    if (!snapshot.title) missing.push('title');
+    if (!snapshot.textLen || snapshot.textLen < 100) missing.push('text');
+    if (!snapshot.contact_name) missing.push('contact_name');
+    if (!snapshot.contact_email) missing.push('contact_email');
+    if (!snapshot.city) missing.push('location_city');
+    if (!snapshot.country) missing.push('location_country_select');
+    
+    if (missing.length) {
+      console.log('❌ Step 1 still has missing fields:', missing);
+      throw new Error(`Required fields still empty after fill: ${missing.join(', ')}`);
+    }
+    
+    console.log('✅ Step 1 all required fields verified present');
   }
 
   /**
