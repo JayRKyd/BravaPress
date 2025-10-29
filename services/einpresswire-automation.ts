@@ -945,7 +945,7 @@ export class EINPresswireAutomation {
   private async fillEINEditStepOne(submission: PressReleaseSubmission): Promise<void> {
     if (!this.page) throw new Error('Page not available');
 
-    // Helper: safe fill
+    // Helper: fill with real typing + event simulation for JS validation
     const tryFill = async (selector: string, value?: string) => {
       if (!value) {
         console.log(`⏭️ Skipped ${selector} (empty value)`);
@@ -954,21 +954,49 @@ export class EINPresswireAutomation {
       try {
         const loc = this.page!.locator(selector).first();
         const count = await loc.count();
-        if (count > 0) {
-          await loc.fill(value);
-          console.log(`✅ Filled ${selector}`);
-        } else {
+        if (count === 0) {
           console.log(`⚠️ Selector not found: ${selector}`);
+          return;
+        }
+        
+        // Wait for field to be ready
+        await loc.waitFor({ state: 'visible', timeout: 5000 });
+        await this.page!.waitForTimeout(200); // Let JS initialize
+        
+        // Clear then type (simulates real user interaction)
+        await loc.clear();
+        await loc.type(value, { delay: 10 }); // Type with slight delay between keys
+        
+        // Trigger JS events that EINPresswire expects
+        await loc.dispatchEvent('input');
+        await loc.dispatchEvent('change');
+        await loc.blur(); // Trigger blur validation
+        
+        // Verify value stuck
+        const actualValue = await loc.inputValue();
+        if (actualValue === value) {
+          console.log(`✅ Filled ${selector} (verified: ${value.length} chars)`);
+        } else {
+          console.log(`⚠️ Field ${selector} mismatch: got "${actualValue}" vs expected "${value}"`);
         }
       } catch (e) {
         console.log(`❌ Failed to fill ${selector}:`, e);
       }
     };
 
-    // Helper: select by label or value
+    // Helper: select by label or value with event triggering
     const trySelect = async (selector: string, opts: { label?: string; value?: string }) => {
       try {
-        const selected = await this.page!.selectOption(selector, opts as any);
+        const loc = this.page!.locator(selector).first();
+        await loc.waitFor({ state: 'visible', timeout: 5000 });
+        await this.page!.waitForTimeout(100);
+        
+        const selected = await loc.selectOption(opts as any);
+        
+        // Trigger change event for JS validation
+        await loc.dispatchEvent('change');
+        await loc.blur();
+        
         console.log(`✅ Selected ${JSON.stringify(opts)} on ${selector} -> ${selected}`);
       } catch (e) {
         console.log(`❌ Failed select on ${selector} with ${JSON.stringify(opts)}:`, e);
@@ -1289,34 +1317,50 @@ export class EINPresswireAutomation {
 
     console.log('🎯 Step 3 targets:', { industryLabel, countryLabel });
 
-    // Find all channel selects and assign first matching industry and country by label
-    try {
-      const assigned = await this.page.evaluate(({ industryLabel, countryLabel }) => {
-        const selects = Array.from(document.querySelectorAll<HTMLSelectElement>('select[name="channels[]"]'));
-        let industryDone = false;
-        let countryDone = false;
-        for (const sel of selects) {
-          const hasIndustry = Array.from(sel.options).some(o => o.text.trim().toLowerCase() === industryLabel.trim().toLowerCase());
-          const hasCountry = Array.from(sel.options).some(o => o.text.trim().toLowerCase() === countryLabel!.trim().toLowerCase());
-          if (!industryDone && hasIndustry) {
-            const opt = Array.from(sel.options).find(o => o.text.trim().toLowerCase() === industryLabel.trim().toLowerCase());
-            if (opt) sel.value = opt.value;
-            industryDone = true;
-            continue;
-          }
-          if (!countryDone && hasCountry) {
-            const opt = Array.from(sel.options).find(o => o.text.trim().toLowerCase() === countryLabel!.trim().toLowerCase());
-            if (opt) sel.value = opt.value;
-            countryDone = true;
-            continue;
-          }
-        }
-        return { industryDone, countryDone, total: selects.length };
-      }, { industryLabel, countryLabel });
-      console.log(`✅ Step 3 selection set:`, assigned);
-    } catch (e) {
-      console.log('⚠️ Could not auto-select Step 3 channels:', e);
+    // Get all channel dropdowns
+    const channelSelects = this.page.locator('select[name="channels[]"]');
+    const totalCount = await channelSelects.count();
+    console.log(`🔍 Found ${totalCount} distribution channel dropdowns`);
+
+    if (totalCount === 0) {
+      console.log('⚠️ No channel selects found - may not be on Step 3 distribution page');
+      return;
     }
+
+    // Try to find and select industry and country dropdowns by inspecting their options
+    let industryDone = false;
+    let countryDone = false;
+
+    for (let i = 0; i < totalCount; i++) {
+      const dropdown = channelSelects.nth(i);
+      
+      try {
+        // Get all option labels for this dropdown
+        const options = await dropdown.locator('option').allTextContents();
+        const hasIndustry = options.some(o => o.trim().toLowerCase() === industryLabel.trim().toLowerCase());
+        const hasCountry = options.some(o => o.trim().toLowerCase() === countryLabel.trim().toLowerCase());
+
+        if (!industryDone && hasIndustry) {
+          await dropdown.selectOption({ label: industryLabel });
+          await dropdown.dispatchEvent('change');
+          await dropdown.blur();
+          console.log(`✅ Selected industry "${industryLabel}" in dropdown #${i}`);
+          industryDone = true;
+        } else if (!countryDone && hasCountry) {
+          await dropdown.selectOption({ label: countryLabel });
+          await dropdown.dispatchEvent('change');
+          await dropdown.blur();
+          console.log(`✅ Selected country "${countryLabel}" in dropdown #${i}`);
+          countryDone = true;
+        }
+      } catch (e) {
+        console.log(`⚠️ Could not process dropdown #${i}:`, e);
+      }
+
+      if (industryDone && countryDone) break;
+    }
+
+    console.log(`✅ Step 3 selection complete:`, { industryDone, countryDone, totalDropdowns: totalCount });
   }
 
   /**
