@@ -51,6 +51,49 @@ export class EINPresswireAutomation {
   }
 
   /**
+   * Ensure we're authenticated in the current browser context.
+   */
+  private async ensureLoggedIn(): Promise<void> {
+    if (!this.page) throw new Error('Page not available');
+    const email = process.env.EINPRESSWIRE_EMAIL;
+    const password = process.env.EINPRESSWIRE_PASSWORD;
+    if (!email || !password) throw new Error('EINPresswire credentials not set in environment variables');
+
+    try {
+      // Quick check: if we can see a user-only element, assume logged in
+      const loggedIn = await this.page.locator('a.gtm-upper_menu-click-logout, a.gtm-upper_menu-click-my_releases').first().isVisible({ timeout: 2000 }).catch(() => false);
+      if (loggedIn) {
+        console.log('🔐 Already logged in (header detected)');
+        return;
+      }
+    } catch {}
+
+    console.log('🔐 Logging in to EINPresswire...');
+    await this.page.goto('https://www.einpresswire.com/login-email', { waitUntil: 'domcontentloaded', timeout: 60000 });
+
+    // Fill login form
+    await this.page.waitForSelector('form[action="/login-email"]', { timeout: 10000 });
+    await this.page.fill('input#login', email);
+    await this.page.fill('input#password', password);
+    const loginBtn = this.page.locator('form[action="/login-email"] button[type="submit"]').first();
+    await loginBtn.click({ force: true });
+
+    // Wait for navigation or for header indicator
+    await Promise.race([
+      this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {}),
+      this.page.locator('a.gtm-upper_menu-click-submit_release, a.gtm-upper_menu-click-logout').first().waitFor({ timeout: 15000 }).catch(() => {})
+    ]);
+
+    // Final check
+    const success = await this.page.locator('a.gtm-upper_menu-click-submit_release, a.gtm-upper_menu-click-logout').first().isVisible({ timeout: 2000 }).catch(() => false);
+    if (success) {
+      console.log('✅ Login successful');
+    } else {
+      throw new Error('Login did not complete');
+    }
+  }
+
+  /**
    * Initialize browser and create context
    */
   async initialize(headless: boolean = true): Promise<void> {
@@ -578,7 +621,10 @@ export class EINPresswireAutomation {
         })
       } catch {}
 
-      // 1) Go to EIN "Create Your Press Release" (Step 1) and fill required fields
+      // 1) Ensure we're logged in
+      await this.ensureLoggedIn();
+
+      // 2) Go to EIN "Create Your Press Release" (Step 1) and fill required fields
       const editUrl = `${this.baseUrl}/press-releases/edit`;
       await this.page.goto(editUrl, { waitUntil: 'networkidle' });
       console.log(`📄 Navigated to edit page: ${editUrl}`);
@@ -636,6 +682,16 @@ export class EINPresswireAutomation {
           } catch {}
         }
       }
+
+      // If redirected to login, perform login then retry edit URL once
+      try {
+        const cur = this.page.url();
+        if (/\/login/.test(cur)) {
+          console.log('🔁 Detected login redirect; logging in and retrying edit page');
+          await this.ensureLoggedIn();
+          await this.page.goto(editUrl, { waitUntil: 'networkidle' });
+        }
+      } catch {}
 
       // Log current URL and title for debugging
       try {
