@@ -755,12 +755,40 @@ export class EINPresswireAutomation {
       } catch {}
 
       // 4) Fill Step 3 selections (industry and country) and submit for review
+      // Wait for Step 3 form/buttons to render
+      try {
+        await this.page.waitForSelector('form#location, button[name="save_and_publish"], a:has-text("Save Your Selection")', { timeout: 15000 });
+      } catch {}
+
       await this.fillEINEditStepThree(submission);
       try {
-        const publishBtn = this.page.locator('button[name="save_and_publish"]').first();
-        await publishBtn.waitFor({ timeout: 8000 });
-        await publishBtn.scrollIntoViewIfNeeded().catch(() => {});
-        await publishBtn.click({ force: true });
+        // Try multiple selectors and scroll if needed
+        const submitSelectors = [
+          'button[name="save_and_publish"]',
+          'button:has-text("Save Your Selection")',
+          'input[type="submit"][name="save_and_publish"]'
+        ];
+        let clickedSubmit = false;
+        for (const s of submitSelectors) {
+          const btn = this.page.locator(s).first();
+          if (await btn.isVisible({ timeout: 2000 }).catch(() => false)) {
+            await btn.scrollIntoViewIfNeeded().catch(() => {});
+            await btn.click({ force: true });
+            clickedSubmit = true;
+            break;
+          }
+        }
+        if (!clickedSubmit) {
+          await this.page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+          const btn = this.page.locator('button[name="save_and_publish"]').first();
+          if (await btn.isVisible({ timeout: 3000 }).catch(() => false)) {
+            await btn.click({ force: true });
+            clickedSubmit = true;
+          }
+        }
+        if (!clickedSubmit) {
+          console.log('⚠️ Save & Submit button not visible; will attempt overlay/publish link fallback');
+        }
         await this.page.waitForLoadState('networkidle');
         console.log('✅ Step 3 submitted (Save & Submit for Review)');
 
