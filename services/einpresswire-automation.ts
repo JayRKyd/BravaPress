@@ -580,8 +580,69 @@ export class EINPresswireAutomation {
 
       // 1) Go to EIN "Create Your Press Release" (Step 1) and fill required fields
       const editUrl = `${this.baseUrl}/press-releases/edit`;
-      await this.page.goto(editUrl, { waitUntil: 'domcontentloaded' });
+      await this.page.goto(editUrl, { waitUntil: 'networkidle' });
       console.log(`📄 Navigated to edit page: ${editUrl}`);
+
+      // Ensure the Step 1 form is present; try alternatives if needed
+      const editCandidates = [
+        'form#pr_edit_form',
+        '#title',
+        'input[name="title"]'
+      ];
+      let foundEdit = false;
+      for (const sel of editCandidates) {
+        if (await this.page.locator(sel).first().isVisible({ timeout: 3000 }).catch(() => false)) {
+          console.log(`🔎 Found edit selector: ${sel}`);
+          foundEdit = true;
+          break;
+        }
+      }
+      if (!foundEdit) {
+        console.log('🧭 Edit form not found; trying alternate paths');
+        const altUrls = [
+          `${this.baseUrl}/press-releases/create`,
+          `${this.baseUrl}/press-releases/new`,
+          `${this.baseUrl}/press-releases/edit`
+        ];
+        for (const url of altUrls) {
+          try {
+            await this.page.goto(url, { waitUntil: 'networkidle' });
+            console.log(`🔁 Navigated alternative: ${url}`);
+            for (const sel of editCandidates) {
+              if (await this.page.locator(sel).first().isVisible({ timeout: 3000 }).catch(() => false)) {
+                console.log(`🔎 Found edit selector on alt: ${sel}`);
+                foundEdit = true;
+                break;
+              }
+            }
+            if (foundEdit) break;
+          } catch {}
+        }
+        // Last resort: click header CTA if present
+        if (!foundEdit) {
+          try {
+            const cta = this.page.locator('a.gtm-upper_menu-click-submit_release').first();
+            if (await cta.isVisible({ timeout: 2000 }).catch(() => false)) {
+              await cta.click({ force: true });
+              await this.page.waitForLoadState('networkidle');
+              for (const sel of editCandidates) {
+                if (await this.page.locator(sel).first().isVisible({ timeout: 3000 }).catch(() => false)) {
+                  console.log(`🔎 Found edit selector via CTA: ${sel}`);
+                  foundEdit = true;
+                  break;
+                }
+              }
+            }
+          } catch {}
+        }
+      }
+
+      // Log current URL and title for debugging
+      try {
+        const curUrl = this.page.url();
+        const title = await this.page.title();
+        console.log('🌐 Page context before fill:', { curUrl, title });
+      } catch {}
 
       await this.fillEINEditStepOne(submission);
 
