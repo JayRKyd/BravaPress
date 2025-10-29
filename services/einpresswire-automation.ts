@@ -99,9 +99,13 @@ export class EINPresswireAutomation {
   async initialize(headless: boolean = true): Promise<void> {
     console.log('🚀 Initializing EINPresswire automation...');
     
+    // Override headless mode with environment variable for debugging
+    const forceHeadless = process.env.PLAYWRIGHT_HEADLESS === 'false' ? false : headless;
+    console.log(`🎭 Browser mode: ${forceHeadless ? 'headless' : 'visible'}`);
+    
     try {
       this.browser = await chromium.launch({
-        headless,
+        headless: forceHeadless,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -724,35 +728,57 @@ export class EINPresswireAutomation {
 
       // 3) From preview, proceed to Step 3 (Choose Your Distribution)
       try {
-        const step3Link = this.page.locator('a[href="/press-releases/edit-location"]').first();
-        if (await step3Link.isVisible({ timeout: 4000 }).catch(() => false)) {
-          await step3Link.click({ force: true });
-          await this.page.waitForLoadState('networkidle');
-        } else {
-          // Fallback: try generic proceed controls, else go directly by URL
-          const proceedSelectors = [
-            'button:has-text("Continue")',
-            'button:has-text("Proceed")',
-            'a:has-text("Continue")',
-            'a:has-text("Proceed")',
-            'button:has-text("Step 3")',
-          ];
-          let clicked = false;
-          for (const s of proceedSelectors) {
-            const el = this.page.locator(s).first();
-            if (await el.isVisible({ timeout: 1500 }).catch(() => false)) {
-              await el.click({ force: true });
-              await this.page.waitForLoadState('networkidle');
-              clicked = true;
-              break;
-            }
-          }
-          if (!clicked) {
-            await this.page.goto(`${this.baseUrl}/press-releases/edit-location`, { waitUntil: 'domcontentloaded' });
+        // Log current URL for debugging
+        const previewUrl = this.page.url();
+        console.log('🔍 Step 2 URL:', previewUrl);
+        
+        // Try to find the actual "Continue to Step 3" or distribution link
+        const step3Candidates = [
+          'a[href*="edit-location"]',
+          'a:has-text("Continue to Step 3")',
+          'a:has-text("Choose Your Distribution")',
+          'a:has-text("Step 3")',
+          'button:has-text("Continue to Step 3")',
+          'button[name="continue"]',
+          'input[type="submit"][value*="Continue"]'
+        ];
+        
+        let navigated = false;
+        for (const s of step3Candidates) {
+          const el = this.page.locator(s).first();
+          if (await el.isVisible({ timeout: 2000 }).catch(() => false)) {
+            const href = await el.getAttribute('href').catch(() => null);
+            console.log(`🔗 Found Step 3 link: ${s} -> ${href || 'button'}`);
+            await el.click({ force: true });
+            await this.page.waitForLoadState('networkidle');
+            navigated = true;
+            break;
           }
         }
-        console.log('➡️ Arrived at Step 3 (Choose Your Distribution)');
-      } catch {}
+        
+        // If no link found, check if we need to save draft first
+        if (!navigated) {
+          console.log('🔍 No Step 3 link found; checking if draft save required');
+          const saveDraftBtn = this.page.locator('button[name="store_draft"], button:has-text("Save as a Draft")').first();
+          if (await saveDraftBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+            console.log('💾 Saving as draft first...');
+            await saveDraftBtn.click({ force: true });
+            await this.page.waitForLoadState('networkidle');
+            // After draft save, look for distribution/publish link
+            const publishLink = this.page.locator('a:has-text("Distribute"), a:has-text("Publish"), a:has-text("Choose Distribution")').first();
+            if (await publishLink.isVisible({ timeout: 3000 }).catch(() => false)) {
+              await publishLink.click({ force: true });
+              await this.page.waitForLoadState('networkidle');
+              navigated = true;
+            }
+          }
+        }
+        
+        const finalUrl = this.page.url();
+        console.log('➡️ Arrived at Step 3 (Choose Your Distribution). URL:', finalUrl);
+      } catch (e) {
+        console.log('⚠️ Step 2→3 navigation issue:', e);
+      }
 
       // 4) Fill Step 3 selections (industry and country) and submit for review
       // Wait for Step 3 form/buttons to render
