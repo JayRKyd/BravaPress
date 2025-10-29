@@ -561,6 +561,23 @@ export class EINPresswireAutomation {
     console.log('📤 Starting press release submission...');
     
     try {
+      // Log incoming submission payload (redact long body)
+      try {
+        console.log('🧾 Submission payload (pre-flight):', {
+          titlePresent: !!submission.title,
+          summaryPresent: !!submission.summary,
+          contentLength: submission.content?.length || 0,
+          companyName: submission.companyName,
+          contactName: submission.contactName,
+          contactEmail: submission.contactEmail,
+          contactPhonePresent: !!submission.contactPhone,
+          websiteUrlPresent: !!submission.websiteUrl,
+          industry: submission.industry,
+          location: submission.location,
+          scheduledDate: submission.scheduledDate?.toISOString?.() || null
+        })
+      } catch {}
+
       // 1) Go to EIN "Create Your Press Release" (Step 1) and fill required fields
       const editUrl = `${this.baseUrl}/press-releases/edit`;
       await this.page.goto(editUrl, { waitUntil: 'domcontentloaded' });
@@ -759,22 +776,32 @@ export class EINPresswireAutomation {
 
     // Helper: safe fill
     const tryFill = async (selector: string, value?: string) => {
-      if (!value) return;
+      if (!value) {
+        console.log(`⏭️ Skipped ${selector} (empty value)`);
+        return;
+      }
       try {
         const loc = this.page!.locator(selector).first();
-        if (await loc.count() > 0) {
+        const count = await loc.count();
+        if (count > 0) {
           await loc.fill(value);
           console.log(`✅ Filled ${selector}`);
+        } else {
+          console.log(`⚠️ Selector not found: ${selector}`);
         }
-      } catch {}
+      } catch (e) {
+        console.log(`❌ Failed to fill ${selector}:`, e);
+      }
     };
 
     // Helper: select by label or value
     const trySelect = async (selector: string, opts: { label?: string; value?: string }) => {
       try {
-        await this.page!.selectOption(selector, opts as any);
-        console.log(`✅ Selected ${JSON.stringify(opts)} on ${selector}`);
-      } catch {}
+        const selected = await this.page!.selectOption(selector, opts as any);
+        console.log(`✅ Selected ${JSON.stringify(opts)} on ${selector} -> ${selected}`);
+      } catch (e) {
+        console.log(`❌ Failed select on ${selector} with ${JSON.stringify(opts)}:`, e);
+      }
     };
 
     // Title, summary, body
@@ -845,6 +872,33 @@ export class EINPresswireAutomation {
     await tryFill('#contact_organization', submission.companyName);
     await tryFill('#contact_phone', submission.contactPhone);
     await tryFill('#contact_email', submission.contactEmail);
+
+    // Verify filled values (log)
+    try {
+      const filled = await this.page.evaluate(() => ({
+        title: (document.querySelector('#title') as HTMLInputElement)?.value || '',
+        subtitle: (document.querySelector('#subtitle') as HTMLTextAreaElement)?.value || '',
+        textLen: (document.querySelector('#text') as HTMLTextAreaElement)?.value.length || 0,
+        city: (document.querySelector('#location_city') as HTMLInputElement)?.value || '',
+        country: (document.querySelector('#location_country_select') as HTMLSelectElement)?.value || '',
+        contact_name: (document.querySelector('#contact_name') as HTMLInputElement)?.value || '',
+        contact_org: (document.querySelector('#contact_organization') as HTMLInputElement)?.value || '',
+        contact_email: (document.querySelector('#contact_email') as HTMLInputElement)?.value || ''
+      }));
+      console.log('🧪 Step 1 filled snapshot:', filled);
+      const missing: string[] = [];
+      if (!filled.title) missing.push('title');
+      if (!filled.textLen) missing.push('text');
+      if (!filled.contact_name) missing.push('contact_name');
+      if (!filled.contact_email) missing.push('contact_email');
+      if (!filled.city) missing.push('location_city');
+      if (!filled.country) missing.push('location_country_select');
+      if (missing.length) {
+        console.log('⚠️ Step 1 missing after fill:', missing);
+      } else {
+        console.log('✅ Step 1 required fields present');
+      }
+    } catch {}
   }
 
   /**
@@ -1061,6 +1115,8 @@ export class EINPresswireAutomation {
       countryLabel = parts.length >= 2 ? parts[parts.length - 1] : undefined;
     }
     if (!countryLabel) countryLabel = 'United States';
+
+    console.log('🎯 Step 3 targets:', { industryLabel, countryLabel });
 
     // Find all channel selects and assign first matching industry and country by label
     try {

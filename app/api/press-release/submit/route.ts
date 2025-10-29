@@ -33,36 +33,16 @@ export async function POST(request: NextRequest) {
       await automation.initialize(headless);
       console.log('✅ Browser initialized');
 
-      // Step 1: Purchase package
-      console.log(`💳 Purchasing ${packageType} package...`);
-      const purchaseResult = await automation.purchasePackage(packageType);
-      
-      if (!purchaseResult.success) {
-        console.error('❌ Purchase failed:', purchaseResult.error);
-        return NextResponse.json(
-          { 
-            error: `Purchase failed: ${purchaseResult.error}`,
-            purchase: purchaseResult
-          },
-          { status: 500 }
-        );
-      }
-
-      console.log('✅ Package purchased successfully:', purchaseResult.orderId);
-
-      // Step 2: Submit press release
-      console.log('📤 Submitting press release...');
-      const submissionResult = await automation.submitPressRelease(
-        pressRelease, 
-        purchaseResult.accessCredentials
-      );
+      // New flow: Directly submit via EIN Step 1 → Step 2 → Step 3 using credits
+      // (Fills edit form, proceeds to preview, selects distribution, confirms review)
+      console.log('📤 Submitting press release via EIN Step 1 → 3 flow...');
+      const submissionResult = await automation.submitPressRelease(pressRelease);
 
       if (!submissionResult.success) {
         console.error('❌ Submission failed:', submissionResult.error);
         return NextResponse.json(
           { 
             error: `Submission failed: ${submissionResult.error}`,
-            purchase: purchaseResult,
             submission: submissionResult
           },
           { status: 500 }
@@ -73,7 +53,6 @@ export async function POST(request: NextRequest) {
 
       // Return successful result
       return NextResponse.json({
-        purchase: purchaseResult,
         submission: submissionResult
       });
 
